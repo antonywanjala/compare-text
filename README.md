@@ -6,5 +6,4 @@ This is great for instances in which you may use the output of an LLM to start t
 
 LLM responses, at the time of this writing, are prone to have n-grams of orders 2 or more in common with the prompts used to generate them. This doesn't happen all the time. In fact, it happens very infrequently. However, when it does happen, and a piece of writing fails an LLM smell test, it can lead to unintended consequences on the part of the prompt engineer.
 
-This tool increases the likelihood that an individual will not notice these similarities (if used correctly).
-
+Prompts which involve quotes or the user (prompt-maker) presenting the LLM with text for the sake of comparison are the most likely to result in this reduction of LLM-response-heterogeneity.
