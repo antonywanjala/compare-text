@@ -64,7 +64,16 @@ class NGramAnalyzerMaker:
     def initialize_results(self):
         self.results = []
 
-    def analyze(self):
+    def remove_asterisks_and_hashtags(self, text):
+        # Replace asterisks with empty strings
+        text = text.replace('*', '')
+
+        # Replace hashtags with empty strings
+        text = text.replace('#', '')
+
+        return text
+
+    def analyze(self, switch=1):
         self.initialize_results()
 
         for n in range(1, self.get_max_order() + 1):
@@ -73,6 +82,12 @@ class NGramAnalyzerMaker:
 
             with open(self.get_response_file(), 'r', encoding='utf-8') as f:
                 response_text = f.read()
+
+            if switch == 1:
+                source_text = source_text.lower()
+                response_text = response_text.lower()
+                source_text = self.remove_asterisks_and_hashtags(source_text)
+                response_text = self.remove_asterisks_and_hashtags(response_text)
 
             source_ngrams = list(nltk.ngrams(source_text.split(), n))
             response_ngrams = list(nltk.ngrams(response_text.split(), n))
