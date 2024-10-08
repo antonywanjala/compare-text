@@ -137,8 +137,6 @@ class AnalyzerMaker:
                         "Both": ngram in source_ngrams and ngram in response_ngrams
                     })
                     progress_bar.update(1)
-        # print('results=')
-        # print(self.get_results())
 
         self.set_writer_dataframe(self.get_results())
 
