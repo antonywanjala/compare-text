@@ -204,6 +204,6 @@ if __name__ == "__main__":
     analyzer.set_response_file_remover()
     analyzer.analyze(switch=1)
 
-    analyzer.set_writer_output_path("absolute\\path\\to\\output_" + "\\" + str(self.get_start_time()) + ".csv")
+    analyzer.set_writer_output_path("absolute\\path\\to\\output_" + "\\" + str(analyzer.get_start_time()) + ".csv")
 
     analyzer.get_writer().write()
