@@ -4,7 +4,6 @@ import time
 from collections import Counter
 from tqdm import tqdm
 
-
 class AnalyzerMaker:
     def __init__(self, source_file, response_file, max_order=5, only_common=True):
         self.start_time = time.time()
@@ -18,9 +17,6 @@ class AnalyzerMaker:
 
         self.results = None
         self.writer = None
-
-        self.source_file_remover = None
-        self.response_file_remover = None
 
     def get_writer(self):
         return self.writer
@@ -43,21 +39,8 @@ class AnalyzerMaker:
     def get_only_common(self):
         return self.only_common
 
-    def get_source_file_remover_final_string(self):
-        return self.source_file_remover.get_final_string()
-
-    def get_response_file_remover_final_string(self):
-        return self.response_file_remover.get_final_string()
-
-
     def set_writer(self):
         self.writer = WriterMaker()
-
-    def set_source_file_remover(self):
-        self.source_file_remover = NonAlphaNumericRemoverMaker()
-
-    def set_response_file_remover(self):
-        self.response_file_remover = NonAlphaNumericRemoverMaker()
 
     def set_results_dataframe(self, value):
         self.results_dataframe = pd.DataFrame(value)
@@ -86,16 +69,10 @@ class AnalyzerMaker:
     def set_writer_output_path(self, value):
         self.writer.set_output_path(value)
 
-    def remove_all_non_alphanumeric_from_source_file(self, value):
-        self.source_file_remover.remove(value)
-
-    def remove_all_non_alphanumeric_from_response_file(self, value):
-        self.response_file_remover.remove(value)
-
     def initialize_results(self):
         self.results = []
 
-    def analyze(self, switch=1):
+    def analyze(self):
         self.initialize_results()
 
         for n in range(1, self.get_max_order() + 1):
@@ -104,14 +81,6 @@ class AnalyzerMaker:
 
             with open(self.get_response_file(), 'r', encoding='utf-8') as f:
                 response_text = f.read()
-
-            if switch == 1:
-                source_text = source_text.lower()
-                response_text = response_text.lower()
-                self.remove_all_non_alphanumeric_from_source_file(source_text)
-                self.remove_all_non_alphanumeric_from_response_file(response_text)
-                source_text = self.get_source_file_remover_final_string()
-                response_text = self.get_response_file_remover_final_string()
 
             source_ngrams = list(nltk.ngrams(source_text.split(), n))
             response_ngrams = list(nltk.ngrams(response_text.split(), n))
@@ -128,9 +97,27 @@ class AnalyzerMaker:
 
             with tqdm(total=total_ngrams, desc=f"Analyzing n-grams (order {n})") as progress_bar:
                 for ngram, frequency in ngram_frequencies.items():
+                    ngram_text = " ".join(ngram)
+
+                    n_gram_text_remover = NonAlphaNumericCharacterRemoverMaker()
+                    n_gram_text_remover.set_initial_string(ngram_text)
+                    n_gram_text_remover.remove()
+
+                    cleaned_ngram = n_gram_text_remover.get_final_string()
+
+                    # Find the original n-gram in each text
+                    source_index = source_ngrams.index(ngram) if ngram in source_ngrams else None
+                    response_index = response_ngrams.index(ngram) if ngram in response_ngrams else None
+
                     self.results.append({
                         "n-gram order": n,
-                        "n-gram": " ".join(ngram),
+                        "n-gram": cleaned_ngram,
+                        "original n-gram in piece 1": " ".join(
+                            source_ngrams[source_index]) if source_index is not None else "",
+                        "original n-gram in piece 2": " ".join(
+                            response_ngrams[response_index]) if response_index is not None else "",
+                        "frequency in piece 1": source_ngrams.count(ngram),
+                        "frequency in piece 2": response_ngrams.count(ngram),
                         "frequency": frequency,
                         "appears in piece 1": ngram in source_ngrams,
                         "appears in piece 2": ngram in response_ngrams,
@@ -167,7 +154,7 @@ class WriterMaker:
         print("OUTPUT PATH: " + str(self.get_output_path()))
 
 
-class NonAlphaNumericRemoverMaker:
+class NonAlphaNumericCharacterRemoverMaker:
     def __init__(self):
         self.start_time = time.time()
         self.initial_string = None
@@ -188,22 +175,23 @@ class NonAlphaNumericRemoverMaker:
     def set_final_string(self, value):
         self.final_string = value
 
-    def remove(self, string):
-        self.set_final_string(''.join(ch for ch in string if ch.isalnum() or ch.isspace()))
+    def remove(self):
+        self.set_final_string("")
+        for char in self.get_initial_string():
+            if char.isalnum() or char.isspace():
+                self.final_string += char.lower()
 
 if __name__ == "__main__":
     piece_one = "absolute\\path\\to\\first\\piece_one.txt"
     piece_two = "absolute\\path\\to\\first\\piece_two.txt"
-
+    
     max_order = 10  # Adjust the maximum n-gram order as needed
     only_common = False  # Set to False to include all n-grams
 
     analyzer = AnalyzerMaker(piece_one, piece_two, max_order=max_order, only_common=only_common)
     analyzer.set_writer()
-    analyzer.set_source_file_remover()
-    analyzer.set_response_file_remover()
-    analyzer.analyze(switch=1)
+    analyzer.analyze()
 
-    analyzer.set_writer_output_path("absolute\\path\\to\\output_" + "\\" + str(analyzer.get_start_time()) + ".csv")
+    analyzer.set_writer_output_path("absolute\\path\\to\\output_\\" + str(analyzer.get_start_time()) + ".csv")
 
     analyzer.get_writer().write()
