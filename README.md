@@ -11,14 +11,17 @@ Prompts which involve quotes or the user (prompt-maker) presenting the LLM with 
 Use-case(s):
 
 #0:
+
 Prompt: Write a(n) [insert document type here] about [insert topic here] as it pertains to the following: [insert excerpt from a pre-existing sample text]
 Response: [insert response here]
 
 Import both Prompt and Response to local .txt files, run the script (replacing the paths for prompt, response and output .csv respectively), and then make note of what is similar in both the prompt and response as detailed in the output .csv.
 
 #1:
+
 If you are 1) an LLM developer or 2) if you have access to the training data inputs utilized that an LLM used to produce a particular output then you could, ostensibly, compare any relevant training data and any associated prompts to an LLM's subsequent output.
 
 #2:
+
 If you are in a situation in which you must compare multiple drafts of, say, marketing materials for a commercial to be read or showcased using an electronic medium such as a podcast, radio or YouTube show and your ultimate objective is to sift out often used terminologies between said drafts with the goal of identifying potential weak points or areas in which draft(s) can be improved or altered.
 
