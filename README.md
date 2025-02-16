@@ -27,7 +27,7 @@ If you are in a situation in which you must compare multiple drafts of, say, mar
 
 #3:
 
-A key part of the process of feature extraction is finding the similarities between a representation of a file or piece of data and a known feature set. This script can aid in the process of performing these comparisons and arriving at what these common features are in, at the very least, a rudimentary yet effective capacity.
+A key part of the process of feature extraction is finding the similarities between a representation of a file or piece of data and a known feature set. This script can aid in the process of performing these comparisons and arriving at what these common features are in, at the very least, a rudimentary yet effective capacity. Feature extraction is a process common to conventional compression and preprocessing techniques.
 
 #4:
 
