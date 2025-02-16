@@ -29,3 +29,30 @@ If you are in a situation in which you must compare multiple drafts of, say, mar
 
 A key part of the process of feature extraction is finding the similarities between a representation of a file or piece of data and a known feature set. This script can aid in the process of performing these comparisons and arriving at what these common features are in, at the very least, a rudimentary yet effective capacity.
 
+#4:
+
+In the event that a subroutine has been identified as the culprit in a recent security breach, identifying which other parts of a codebase either 1) reference said subroutine or 2) implement parts of said subroutine's functionality can be isolated, at least in part, through this script's invocation. 
+
+#5:
+
+Finding redundancies in a codebase is an important part of making subroutines more efficient. The process of reducing the amount of time involved in finding any redundancies present in a codebase can be supplemented by this script.
+
+#6:
+
+The comparison of new content against a database of existing content and, in addition, the identification of copied, pirated or plagiarised material, thereby protecting intellectual property, are crucial facets of any organization's pipeline - especially those dealing with user generated content. Comparing items in these aforementioned databases is something that can be addressed by my script.
+
+#7:
+
+This script can identify recurring themes or sequences in user generated content, search queries or button input maps which all play a hand in the process of curating content recommendations for viewers.
+
+#8:
+
+Identifying duplicates or near-duplicates within large content libraries is also something that this scrip can address.
+
+#9:
+
+Contracts from different vendors sometimes share common clauses, obligations or verbiage. A script such as this one can aid in expediting the process of contract review and ensures key terms are consistently met.
+
+#10:
+
+Analysis of customer feedback from different channels (emails, surveys, reviews, etc.) for common issues or praise, processes addressed by this script, can help improve product quality and customer satisfaction.
