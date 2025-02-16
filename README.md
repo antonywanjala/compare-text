@@ -56,3 +56,7 @@ Contracts from different vendors sometimes share common clauses, obligations or 
 #10:
 
 Analysis of customer feedback from different channels (emails, surveys, reviews, etc.) for common issues or praise, processes addressed by this script, can help improve product quality and customer satisfaction.
+
+#11
+
+Have one of the files supplied to the script be a list of words, phrases or statements which the user wishes to evaluate the presence of in any one of the remaining file arguments to be supplied to the script. The resultant output would reflect which items are common of the supplied documents.
