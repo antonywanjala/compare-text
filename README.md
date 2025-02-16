@@ -25,3 +25,7 @@ If you are 1) an LLM developer or 2) if you have access to the training data inp
 
 If you are in a situation in which you must compare multiple drafts of, say, marketing materials for a commercial to be read or showcased using an electronic medium such as a podcast, radio or YouTube show and your ultimate objective is to sift out often used terminologies between said drafts with the goal of identifying potential weak points or areas in which draft(s) can be improved or altered.
 
+#3:
+
+A key part of the process of feature extraction is finding the similarities between a representation of a file or piece of data and a known feature set. This script can aid in the process of performing these comparisons and arriving at what these common features are in, at the very least, a rudimentary yet effective capacity.
+
