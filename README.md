@@ -59,4 +59,4 @@ Analysis of customer feedback from different channels (emails, surveys, reviews,
 
 #11
 
-Have one of the files supplied to the script be a list of words, phrases or statements which the user wishes to evaluate the presence of in any one of the remaining file arguments to be supplied to the script. The resultant output would reflect which items are common of the supplied documents.
+Have one of the files supplied to the script be a list of words, phrases or statements which the user wishes to evaluate the presence of (eg. strings commonly found in fraudulent documentation) in any one of the remaining file arguments to be supplied to the script. The resultant output would reflect which items are common of the supplied documents.
