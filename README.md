@@ -60,3 +60,7 @@ Analysis of customer feedback from different channels (emails, surveys, reviews,
 #11
 
 Have one of the files supplied to the script be a list of words, phrases or statements which the user wishes to evaluate the presence of (eg. strings commonly found in fraudulent documentation, common discrepancies, etc.) in any one of the remaining file arguments to be supplied to the script. The resultant output would reflect which items are common of the supplied documents.
+
+#12
+
+Determining popular elements in a series (akin to finding which n-grams two or more documents have in common) can also aid in the determination of which of these aforementioned elements are to remain in their decompressed state so as to reduce the amount of compute costs relegated to their subsequent decompression upon purchase by a given user or upon being accessed by a given user. Popular items being left in a decompressed state and less popular items being left in a compressed state. The aforementioned process can also be used to respond to seasonal trends, fads, etc. Elements that are in a compressed format incur lower costs when it comes to the amount of bandwidth required for their download. To add, in the event that these elements are made available in a digital storefront, a compressed format would also result in lower costs as far as server-side storage is concerned as well. 
