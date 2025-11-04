@@ -68,3 +68,7 @@ Determining popular elements in a series (akin to finding which n-grams two or m
 #13
 
 If you were making a blog article auto-publisher, you could use this script as a quality control measure, avoiding the publishing of articles which possess the repetition (over-emphasis, if you will) of phrases that are, say, 5 words in length or more. The reason why is because LLM's have a tendency to include generated titles within the title-article matricies they generate from time to time. Making a function that returns TRUE in the event a resultant title-article matrix falls into such a category can be a means of avoiding such a quality from making its way into a published blog timeline. The same could hold TRUE for any arguments and/or source materials used in such a capacity as well.
+
+#14
+
+randomize_case.py can be used in conjunction with standard hashing techniques (eg. sha-256) in order to bolster a nascent and/or incumbent effort to invoke basic functionality of a given set of corporate game theory exchange templates. 
