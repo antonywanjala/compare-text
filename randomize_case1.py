@@ -1,9 +1,10 @@
 import random
 import sys
+import pyperclip
 # 1. Import the pyperclip library
 # You may need to install it first: pip install pyperclip
 try:
-    import pyperclip
+    pass
 except ImportError:
     # Handle the case where pyperclip is not installed
     print("The 'pyperclip' library is required for clipboard functionality.")
