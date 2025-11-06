@@ -72,3 +72,6 @@ If you were making a blog article auto-publisher, you could use this script as a
 #14
 
 randomize_case.py can be used in conjunction with standard hashing techniques (eg. sha-256) in order to bolster a nascent and/or incumbent effort to invoke basic functionality of a given set of corporate game theory exchange templates. 
+
+#15
+Novel applications include using it as a "watchlist" validator to detect fraudulent documentation, analyzing customer feedback for common themes, and even flagging patterns that may indicate the suspicious algorithmic purchase of a domain name.
