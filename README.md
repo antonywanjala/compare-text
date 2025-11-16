@@ -74,7 +74,9 @@ If you were making a blog article auto-publisher, you could use this script as a
 randomize_case.py can be used in conjunction with standard hashing techniques (eg. sha-256) in order to bolster a nascent and/or incumbent effort to invoke basic functionality of a given set of corporate game theory exchange templates. 
 
 #15
+
 Novel applications include using it as a "watchlist" validator to detect fraudulent documentation, analyzing customer feedback for common themes, and even flagging patterns that may indicate the suspicious algorithmic purchase of a domain name.
 
 #16
+
 The frequency distribution of common terminologies can be used as the conceptual bases for use in a corporate strategy maker with the ultimate goal of supplying enough heterogeneity in the corporate strategy maker source material so as to allow for a more heterogenous output (resultant strategies) and, as a result, an output less likely to be tethered down by the any decay in node sequences invoked at the corporatre strategy making level(s) and/or methods.
