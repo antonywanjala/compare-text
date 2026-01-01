@@ -97,3 +97,7 @@ noting the character-to-character offset of each segment across the posts for se
 reassembly and decryption. Note: This method is subject to scrutiny because of its reliance on a public forum (eg. Blogger). In other words, I do not condone the publication of customer information without premeditated consent on either the purveyor of goods and/or services or said customer's part. Also, aside from an internet-capable device and an internet connection, every aspect of said method (detailed in the post) is completely free of charge to the average user.
 This use case pertains to the following scripts: base64converter.py, base64tobinary.py, binarytofernet.py, and fernettooriginal.py. In brief, file to base64 to fernet encryption and then back again or file to base64 to binary to fernet encryption and then back again.
 The following link can guide user on how to use the Blogger API to accomplish this programmatically: "https://developers.google.com/blogger/docs/3.0/using".
+
+#18
+
+To ensure efficient utilization of system resources—both local and remote—duplicate checking is critical. This process is implemented using duplicate_string_finder5.py.
