@@ -163,7 +163,8 @@ def clean_duplicates(raw_data):
 
 
 def write_csv(data):
-    filename = "duplicate_analysis.csv"
+    current_time = str(time.time())
+    filename = "duplicate_analysis_" + current_time + ".csv"
     headers = ["String Length", "Occurrences", "Phrase/String"]
 
     try:
