@@ -1,0 +1,121 @@
+import urllib.request
+import sys
+import time
+from collections import Counter
+
+
+def print_progress(iteration, total, prefix='', suffix='', decimals=1, length=40, fill='█'):
+    """
+    Call in a loop to create terminal progress bar
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filled_length = int(length * iteration // total)
+    bar = fill * filled_length + '-' * (length - filled_length)
+    # \r returns cursor to start of line, allowing overwrite
+    sys.stdout.write(f'\r{prefix} |{bar}| {percent}% {suffix}')
+    sys.stdout.flush()
+    if iteration == total:
+        sys.stdout.write('\n')
+
+
+def find_anagrams_with_loading(user_input, max_words=4):
+    # --- 1. SETUP ---
+    print(f"1. Downloading dictionary (Google's 10k most common words)...")
+    url = "https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt"
+
+    try:
+        with urllib.request.urlopen(url) as response:
+            words_list = response.read().decode('utf-8').splitlines()
+    except Exception as e:
+        print(f"Error downloading dictionary: {e}")
+        return
+
+    # --- 2. PRE-PROCESSING ---
+    # Clean input: keep only letters, lowercase
+    clean_target = "".join(filter(str.isalpha, user_input.lower()))
+    target_count = Counter(clean_target)
+
+    print(f"2. Filtering valid words for '{user_input}'...")
+
+    candidates = []
+    # Filter: Keep only words that can be built from the target letters
+    # AND are at least 2 chars long (unless 'a' or 'i')
+    for word in words_list:
+        word = word.lower()
+        if len(word) < 2 and word not in ['a', 'i']:
+            continue
+
+        word_count = Counter(word)
+        if all(word_count[c] <= target_count[c] for c in word_count):
+            candidates.append(word)
+
+    # Sort candidates by length (optimization: try longest words first)
+    candidates.sort(key=len, reverse=True)
+
+    total_candidates = len(candidates)
+    if total_candidates == 0:
+        print("No valid words found in dictionary for these letters.")
+        return
+
+    print(f"3. Starting Search ({total_candidates} starting words possible)")
+    print("-" * 60)
+
+    found_anagrams = set()
+
+    # --- 3. RECURSIVE SOLVER ---
+    def backtrack(path, current_pool):
+        # Base Case: No letters left -> VALID ANAGRAM
+        if sum(current_pool.values()) == 0:
+            phrase = " ".join(path).title()
+            if phrase not in found_anagrams:
+                found_anagrams.add(phrase)
+                # Clear progress line, print match, then force a new line
+                sys.stdout.write(f'\r\033[K')  # Clear line code
+                print(f"✨ MATCH: {phrase}")
+            return
+
+        # Stop if we hit max words constraint
+        if len(path) >= max_words:
+            return
+
+        # Try next word
+        for word in candidates:
+            # Optimization: If word is longer than remaining letters, skip
+            if len(word) > sum(current_pool.values()):
+                continue
+
+            word_count = Counter(word)
+
+            # Check if word fits in current_pool
+            can_fit = True
+            for char, count in word_count.items():
+                if current_pool[char] < count:
+                    can_fit = False
+                    break
+
+            if can_fit:
+                new_pool = current_pool.copy()
+                new_pool.subtract(word_count)
+                backtrack(path + [word], new_pool)
+
+    # --- 4. RUN WITH PROGRESS BAR ---
+    # We loop through the "Root" words manually to update the bar
+    for i, root_word in enumerate(candidates):
+        # Update Progress Bar
+        print_progress(i + 1, total_candidates, prefix='Searching:', suffix='Complete', length=30)
+
+        # Prepare pool for this root word
+        root_count = Counter(root_word)
+        start_pool = target_count.copy()
+        start_pool.subtract(root_count)
+
+        # Dive into recursion
+        backtrack([root_word], start_pool)
+
+    print("-" * 60)
+    print(f"Done! Found {len(found_anagrams)} unique anagrams.")
+
+
+# --- RUN ---
+user_phrase = input("\nEnter word or phrase: ")
+find_anagrams_with_loading(user_phrase)
