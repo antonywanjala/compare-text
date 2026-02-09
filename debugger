@@ -72,149 +72,320 @@ def _ad_logger(original_line, local_vars, active=True):
 # AUTO-DEBUGGER INJECTION END
 # ==========================================
 _ad_logger(1, locals())
-import sys
+import os
 _ad_logger(2, locals())
-import re
+import shutil
 _ad_logger(3, locals())
-import argparse
+import time
 _ad_logger(4, locals())
-import keyword
+import ast
 
 
-_ad_logger(7, locals())
-def generate_header():
-    """
-    Returns the logic-gating code to be inserted at the top of the file.
-    _ad_logger(10, locals())
-    """
-    return """
+# ==========================================
+# 1. THE LOGGER HEADER (Standard)
+# ==========================================
+_ad_logger(10, locals())
+def generate_header(include_globals=False):
+    _ad_logger(11, locals())
+    globals_flag = "True" if include_globals else "False"
+
+    return f"""
 # ==========================================
 # AUTO-DEBUGGER INJECTION START
 # ==========================================
-import sys
+import inspect
+import os
+import types
 
-# LOGIC GATES
-_AD_DEBUG_MODE = True      # Set to False to disable all prints
-_AD_SHOW_VARS = True       # Set to False to hide variable dumps
-
-def _ad_logger(line_num, local_vars):
-    if not _AD_DEBUG_MODE:
+def _ad_logger(original_line, local_vars, active=True):
+    if not active:
         return
 
-    print(f"\\n[DEBUG] --> Line {line_num} executed")
+    frame = inspect.currentframe().f_back
+    code_obj = frame.f_code
+    func_name = code_obj.co_name
+    abs_path = os.path.abspath(code_obj.co_filename)
+    filename = os.path.basename(abs_path)
+    debug_exec_line = frame.f_lineno
+    func_start_line = code_obj.co_firstlineno
 
-    if _AD_SHOW_VARS:
-        # Filter out internal python vars (starts with __) and the logger itself
-        clean_vars = {k: repr(v) for k, v in local_vars.items() 
-                      if not k.startswith('__') and k != '_ad_logger'}
+    if func_name == '<module>':
+        rel_line = debug_exec_line
+        display_func = "Main Script"
+        offset_str = f"Line {{rel_line}}" 
+    else:
+        rel_line = debug_exec_line - func_start_line
+        display_func = func_name
+        offset_str = f"+{{rel_line}} (inside {{display_func}})"
 
-        if clean_vars:
-            print(f"    [VARS]: {clean_vars}")
+    include_globals = {globals_flag}
+    vars_to_show = local_vars.copy()
+
+    if include_globals:
+        for k, v in frame.f_globals.items():
+            if k not in vars_to_show:
+                vars_to_show[k] = v
+
+    summary_parts = []
+    for k, v in vars_to_show.items():
+        if k.startswith('_') or k in ('local_vars', 'In', 'Out'):
+            continue
+        if isinstance(v, (types.ModuleType, types.FunctionType, types.BuiltinFunctionType)):
+            continue
+        try:
+            summary_parts.append(f"{{k}} = {{repr(v)}}")
+        except:
+            continue
+
+    var_string = ", ".join(summary_parts)
+
+    print(f"\\n[DEBUG] {{filename}} | {{display_func}}")
+    print(f"   Positions: Orig {{original_line}} | Debug {{debug_exec_line}} | Offset {{offset_str}}")
+    if var_string:
+        print(f"   Variables: {{var_string}}")
 # ==========================================
 # AUTO-DEBUGGER INJECTION END
 # ==========================================
-
-_ad_logger(38, locals())
+_ad_logger(70, locals())
 """
 
 
-_ad_logger(41, locals())
-def is_control_flow_continuation(line):
-    """
-    Checks if a line starts with keywords that cannot have code inserted
-    immediately before them (else, elif, except, finally).
-    _ad_logger(45, locals())
-    """
-    _ad_logger(46, locals())
-    stripped = line.strip()
-    # Regex to match 'else:', 'elif ...:', 'except ...:', 'finally:'
-    # We look for the keyword at the start of the line
-    _ad_logger(49, locals())
-    pattern = r'^(else|elif|except|finally)\b'
-    _ad_logger(50, locals())
-    return bool(re.match(pattern, stripped))
-
-
-_ad_logger(53, locals())
-def is_safe_to_instrument(line):
-    """
-    Determines if the line is actual code vs comments/empty/decorators.
-    _ad_logger(56, locals())
-    """
-    _ad_logger(57, locals())
-    stripped = line.strip()
-    _ad_logger(58, locals())
-    if not stripped: return False  # Empty line
-    _ad_logger(59, locals())
-    if stripped.startswith('#'): return False  # Comment
-    _ad_logger(60, locals())
-    if stripped.startswith('@'): return False  # Decorator (must be directly above func)
-    if stripped.startswith('"""') or stripped.startswith("'''"): return False  # Docstrings (simplified)
-    return True
-
-
-def get_indentation(line):
-    """Returns the whitespace string at the start of the line."""
-    return line[:len(line) - len(line.lstrip())]
-
-
-def instrument_file(input_path, output_path):
+# ==========================================
+# 2. INJECTION LOGIC
+# ==========================================
+_ad_logger(76, locals())
+def inject_into_file(file_path, mode_choice, include_globals):
+    _ad_logger(77, locals())
     try:
-        with open(input_path, 'r', encoding='utf-8') as f:
+        _ad_logger(78, locals())
+        with open(file_path, 'r', encoding='utf-8') as f:
+            _ad_logger(79, locals())
             lines = f.readlines()
-    except FileNotFoundError:
-        print(f"Error: File {input_path} not found.")
+
+        _ad_logger(81, locals())
+        new_content = [generate_header(include_globals)]
+        _ad_logger(82, locals())
+        bracket_level = 0
+        _ad_logger(83, locals())
+        in_multiline_string = False
+
+        _ad_logger(85, locals())
+        for i, line in enumerate(lines):
+            _ad_logger(86, locals())
+            stripped = line.strip()
+            _ad_logger(87, locals())
+            indent = line[:len(line) - len(line.lstrip())]
+            _ad_logger(88, locals())
+            original_line_num = i + 1
+
+            bracket_level += (stripped.count('(') + stripped.count('[') + stripped.count('{'))
+            _ad_logger(91, locals())
+            bracket_level -= (stripped.count(')') + stripped.count(']') + stripped.count('}'))
+            if '"""' in stripped or "'''" in stripped:
+                _ad_logger(93, locals())
+                if (stripped.count('"""') % 2 != 0) or (stripped.count("'''") % 2 != 0):
+                    _ad_logger(94, locals())
+                    in_multiline_string = not in_multiline_string
+
+            is_continuation = any(stripped.startswith(w) for w in ('else', 'elif', 'except', 'finally', ')', ']', '}'))
+            is_safe_zone = (bracket_level == 0 and not in_multiline_string)
+
+            should_inject = False
+            if is_safe_zone and stripped and not stripped.startswith(('#', '@')) and not is_continuation:
+                if mode_choice == '1':
+                    should_inject = True
+                elif mode_choice == '2' and "# DEBUG" in line:
+                    should_inject = True
+
+            if should_inject:
+                new_content.append(f"{indent}_ad_logger({original_line_num}, locals())\n")
+            new_content.append(line)
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.writelines(new_content)
+        return True
+    except Exception as e:
+        print(f"ERROR processing {file_path}: {e}")
+        return False
+
+
+# ==========================================
+# 3. IMPORT ANALYZER (AST)
+# ==========================================
+def find_local_dependencies(target_files, all_project_files_map, root_dir):
+    """
+    Parses selected files to find 'import' statements that point to OTHER files
+    within the project.
+    """
+    dependencies = set()
+
+    for file_path in target_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                tree = ast.parse(f.read())
+
+            for node in ast.walk(tree):
+                module_name = None
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        module_name = alias.name
+                elif isinstance(node, ast.ImportFrom):
+                    module_name = node.module
+
+                if module_name:
+                    # Check if this module name maps to a file in our project
+                    # e.g., 'utils.helper' -> utils/helper.py
+                    # Simple check: Convert dots to path separators
+                    potential_path = module_name.replace('.', os.sep)
+
+                    # Search through known project files
+                    for rel_path, full_path in all_project_files_map.items():
+                        # Match: "utils/helper.py" contains "utils/helper"
+                        if rel_path.startswith(potential_path):
+                            dependencies.add((rel_path, full_path))
+
+        except Exception as e:
+            # If syntax error in source, just skip
+            continue
+
+    return list(dependencies)
+
+
+def parse_selection(selection_str, max_index):
+    selection_str = selection_str.strip()
+    if selection_str.lower() == 'all':
+        return list(range(max_index))
+
+    selected_indices = set()
+    parts = selection_str.split(',')
+
+    for part in parts:
+        part = part.strip()
+        if '-' in part:
+            try:
+                start, end = map(int, part.split('-'))
+                for i in range(start - 1, end):
+                    if 0 <= i < max_index:
+                        selected_indices.add(i)
+            except ValueError:
+                pass
+        else:
+            try:
+                idx = int(part) - 1
+                if 0 <= idx < max_index:
+                    selected_indices.add(idx)
+            except ValueError:
+                pass
+    return sorted(list(selected_indices))
+
+
+# ==========================================
+# 4. DIRECTORY HANDLER
+# ==========================================
+def process_project(source_dir, mode_choice, include_globals):
+    dir_name = os.path.basename(os.path.normpath(source_dir))
+    target_dir = os.path.join(os.path.dirname(os.path.normpath(source_dir)), f"{dir_name}_{str(time.time())}_debug_build")
+
+    if os.path.exists(target_dir):
+        print(f"\nCleaning old build at: {target_dir}")
+        shutil.rmtree(target_dir)
+
+    print(f"Cloning project to: {target_dir} ...")
+    shutil.copytree(source_dir, target_dir)
+
+    # Scan for Python files, IGNORING venv/site-packages
+    ignored_dirs = {'venv', 'env', '.git', '__pycache__', 'site-packages', 'node_modules', 'dist', 'build'}
+    py_files = []
+
+    # Map relative path -> full path for dependency lookup
+    file_map = {}
+
+    print("\nScanning project (excluding venv/libs)...")
+    for root, dirs, files in os.walk(target_dir):
+        # Modify dirs in-place to skip ignored folders
+        dirs[:] = [d for d in dirs if d not in ignored_dirs]
+
+        for file in files:
+            if file.endswith(".py"):
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, target_dir)
+                py_files.append((rel_path, full_path))
+                file_map[rel_path] = full_path
+
+    if not py_files:
+        print("No .py files found!")
         return
 
-    instrumented_lines = []
+    # Display Menu
+    print(f"\nFound {len(py_files)} User-Created Python files:")
+    for idx, (rel, full) in enumerate(py_files):
+        print(f"[{idx + 1}] {rel}")
 
-    # Add the header logic gates
-    instrumented_lines.append(generate_header())
+    print("\nWhich MAIN files do you want to debug? (e.g., '1' for main.py)")
+    selection = input("Enter selection: ").strip()
+    indices_to_inject = parse_selection(selection, len(py_files))
 
-    # Stack to track if we are inside a multi-line string (basic detection)
-    in_multiline_string = False
+    # Identify Selected Files
+    selected_files_paths = [py_files[i][1] for i in indices_to_inject]
 
-    for i, line in enumerate(lines):
-        original_line = line
-        stripped = line.strip()
-        indent = get_indentation(line)
-        line_num = i + 1
+    # --- DEPENDENCY CHECK ---
+    print("\nChecking for local dependencies...")
+    local_deps = find_local_dependencies(selected_files_paths, file_map, target_dir)
 
-        # Toggle multiline string state (simplified detection)
-        _ad_logger(93, locals())
-        if '"""' in stripped or "'''" in stripped:
-            if stripped.count('"""') % 2 != 0 or stripped.count("'''") % 2 != 0:
-                in_multiline_string = not in_multiline_string
+    # Filter out files already selected
+    new_deps = [d for d in local_deps if d[1] not in selected_files_paths]
 
-        # LOGIC:
-        # 1. Ignore lines inside multi-line strings
-        # 2. Ignore comments/empty lines
-        # 3. DO NOT insert before 'else', 'elif', 'except', 'finally'
-        #    (We rely on the print statements inside the previous block or the next line)
-        if (not in_multiline_string and
-                is_safe_to_instrument(line) and
-                not is_control_flow_continuation(line)):
-            # Create the debug statement with matching indentation
-            # passing `locals()` captures the state at that specific line
-            debug_stmt = f"{indent}_ad_logger({line_num}, locals())\n"
-            instrumented_lines.append(debug_stmt)
+    final_injection_list = set(selected_files_paths)
 
-        instrumented_lines.append(original_line)
+    if new_deps:
+        print(f"\n[Detected Imports] Your selected files import these LOCAL files:")
+        for rel, full in new_deps:
+            print(f" - {rel}")
 
-    try:
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.writelines(instrumented_lines)
-        print(f"Success! Instrumented file saved to: {output_path}")
-        print("Run the new file to see debug output.")
-    except Exception as e:
-        print(f"Error writing output: {e}")
+        confirm = input("Include these dependencies in debugging? (y/n): ").strip().lower()
+        if confirm == 'y':
+            for _, full in new_deps:
+                final_injection_list.add(full)
+    else:
+        print("No additional local dependencies found (imports are likely third-party).")
+
+    # Execute Injection
+    print("\n--- Processing ---")
+    injected_count = 0
+    for rel, full_path in py_files:
+        if full_path in final_injection_list:
+            if inject_into_file(full_path, mode_choice, include_globals):
+                print(f"[INJECTED] {rel}")
+                injected_count += 1
+        else:
+            print(f"[COPIED]   {rel} (Silent)")
+
+    print(f"\nDONE. {injected_count} files injected.")
+    print(f"Run your project from: {target_dir}")
+
+
+def main():
+    print("--- Smart Dependency-Aware Debugger ---")
+    raw_path = input("Enter path to your Project Folder: ").strip()
+    input_path = raw_path.strip('"').strip("'")
+
+    if not os.path.exists(input_path) or not os.path.isdir(input_path):
+        print("Error: Valid directory path required.")
+        return
+
+    print("\nDebug Mode:")
+    print("1. All lines (Full Trace)")
+    print("2. Selective (Only lines with # DEBUG)")
+    mode_choice = input("Select mode (1 or 2): ").strip()
+
+    print("\nScope:")
+    print("1. Local only")
+    print("2. Global + Local")
+    scope_choice = input("Select scope (1 or 2): ").strip()
+    include_globals = (scope_choice == '2')
+
+    process_project(input_path, mode_choice, include_globals)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Inject debug print statements into a Python script.")
-    parser.add_argument("input_file", help="The .py file to instrument")
-    parser.add_argument("-o", "--output", help="The output file name (default: debug_output.py)", default="debug_output.py")
-
-    args = parser.parse_args()
-
-    instrument_file(args.input_file, args.output)
+    main()
