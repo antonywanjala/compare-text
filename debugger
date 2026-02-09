@@ -95,46 +95,42 @@ class SessionLogger:
 
     _ad_logger(15, locals())
     def log(self, message=""):
-        # Print to console
-        _ad_logger(17, locals())
+        _ad_logger(16, locals())
         print(message)
-        # Save to memory (stripping color codes if we used them)
-        _ad_logger(19, locals())
+        _ad_logger(17, locals())
         self.logs.append(message)
 
-    _ad_logger(21, locals())
+    _ad_logger(19, locals())
     def save_report(self, target_dir):
-        _ad_logger(22, locals())
+        _ad_logger(20, locals())
         report_path = os.path.join(target_dir, "_DEBUG_SUMMARY.txt")
         header = f"""
 ==================================================
       DEBUG INJECTION REPORT
       Generated: {datetime.datetime.now()}
 ==================================================
-_ad_logger(28, locals())
+_ad_logger(26, locals())
 """
-        _ad_logger(29, locals())
+        _ad_logger(27, locals())
         with open(report_path, 'w', encoding='utf-8') as f:
-            _ad_logger(30, locals())
+            _ad_logger(28, locals())
             f.write(header + "\n")
-            _ad_logger(31, locals())
+            _ad_logger(29, locals())
             f.write("\n".join(self.logs))
-
-        _ad_logger(33, locals())
+        _ad_logger(30, locals())
         print(f"\n[REPORT] Summary saved to: {report_path}")
 
 
-# Initialize global logger
-_ad_logger(37, locals())
+_ad_logger(33, locals())
 logger = SessionLogger()
 
 
 # ==========================================
-# 1. THE LOGGER HEADER (Injected Code)
+# 1. THE LOGGER HEADER (Modified for Object Identification)
 # ==========================================
-_ad_logger(43, locals())
+_ad_logger(39, locals())
 def generate_header(include_globals=False):
-    _ad_logger(44, locals())
+    _ad_logger(40, locals())
     globals_flag = "True" if include_globals else "False"
 
     return f"""
@@ -175,13 +171,29 @@ def _ad_logger(original_line, local_vars, active=True):
                 vars_to_show[k] = v
 
     summary_parts = []
+
+    # Standard primitive types that should display their VALUE
+    primitives = (int, float, str, bool, type(None), list, dict, set, tuple)
+
     for k, v in vars_to_show.items():
         if k.startswith('_') or k in ('local_vars', 'In', 'Out'):
             continue
+
+        # 1. Filter out Modules and Functions entirely
         if isinstance(v, (types.ModuleType, types.FunctionType, types.BuiltinFunctionType)):
             continue
+
         try:
-            summary_parts.append(f"{{k}} = {{repr(v)}}")
+            # 2. Check if it is a primitive (Value) or an Object (Description)
+            if isinstance(v, primitives):
+                summary_parts.append(f"{{k}} = {{repr(v)}}")
+            else:
+                # It is a complex object/class instance
+                cls_name = type(v).__name__
+                # Get the module (file) where the class is defined
+                origin = getattr(v, '__module__', 'unknown_source')
+                summary_parts.append(f"{{k}} is an instantiation of {{cls_name}} from {{origin}}")
+
         except:
             continue
 
@@ -194,46 +206,45 @@ def _ad_logger(original_line, local_vars, active=True):
 # ==========================================
 # AUTO-DEBUGGER INJECTION END
 # ==========================================
-_ad_logger(103, locals())
+_ad_logger(115, locals())
 """
 
 
 # ==========================================
-# 2. INJECTION LOGIC
+# 2. INJECTION LOGIC (Unchanged)
 # ==========================================
-_ad_logger(109, locals())
+_ad_logger(121, locals())
 def inject_into_file(file_path, mode_choice, include_globals):
-    _ad_logger(110, locals())
+    _ad_logger(122, locals())
     try:
-        _ad_logger(111, locals())
+        _ad_logger(123, locals())
         with open(file_path, 'r', encoding='utf-8') as f:
-            _ad_logger(112, locals())
+            _ad_logger(124, locals())
             lines = f.readlines()
 
-        _ad_logger(114, locals())
+        _ad_logger(126, locals())
         new_content = [generate_header(include_globals)]
-        _ad_logger(115, locals())
+        _ad_logger(127, locals())
         bracket_level = 0
-        _ad_logger(116, locals())
+        _ad_logger(128, locals())
         in_multiline_string = False
 
-        _ad_logger(118, locals())
+        _ad_logger(130, locals())
         for i, line in enumerate(lines):
-            _ad_logger(119, locals())
+            _ad_logger(131, locals())
             stripped = line.strip()
-            _ad_logger(120, locals())
+            _ad_logger(132, locals())
             indent = line[:len(line) - len(line.lstrip())]
-            _ad_logger(121, locals())
+            _ad_logger(133, locals())
             original_line_num = i + 1
 
-            # Nesting & String State
             bracket_level += (stripped.count('(') + stripped.count('[') + stripped.count('{'))
-            _ad_logger(125, locals())
+            _ad_logger(136, locals())
             bracket_level -= (stripped.count(')') + stripped.count(']') + stripped.count('}'))
             if '"""' in stripped or "'''" in stripped:
-                _ad_logger(127, locals())
+                _ad_logger(138, locals())
                 if (stripped.count('"""') % 2 != 0) or (stripped.count("'''") % 2 != 0):
-                    _ad_logger(128, locals())
+                    _ad_logger(139, locals())
                     in_multiline_string = not in_multiline_string
 
             is_continuation = any(stripped.startswith(w) for w in ('else', 'elif', 'except', 'finally', ')', ']', '}'))
@@ -328,7 +339,6 @@ def process_project(source_dir, mode_choice, include_globals):
     logger.log(f"Cloning project to: {target_dir} ...")
     shutil.copytree(source_dir, target_dir)
 
-    # Scan for Python files
     ignored_dirs = {'venv', 'env', '.git', '__pycache__', 'site-packages', 'node_modules', 'dist', 'build'}
     py_files = []
     file_map = {}
@@ -347,7 +357,6 @@ def process_project(source_dir, mode_choice, include_globals):
         logger.log("[ERROR] No .py files found!")
         return
 
-    # Display Menu
     logger.log(f"Found {len(py_files)} User-Created Python files:")
     for idx, (rel, full) in enumerate(py_files):
         logger.log(f"[{idx + 1}] {rel}")
@@ -359,7 +368,6 @@ def process_project(source_dir, mode_choice, include_globals):
     indices_to_inject = parse_selection(selection, len(py_files))
     selected_files_paths = [py_files[i][1] for i in indices_to_inject]
 
-    # Check Dependencies
     logger.log("\n--- Analyzing Dependencies ---")
     local_deps = find_local_dependencies(selected_files_paths, file_map)
     new_deps = [d for d in local_deps if d[1] not in selected_files_paths]
@@ -380,7 +388,6 @@ def process_project(source_dir, mode_choice, include_globals):
     else:
         logger.log("No additional local dependencies found.")
 
-    # Execute
     logger.log("\n--- Injection Status ---")
     injected_count = 0
     copied_count = 0
@@ -397,12 +404,11 @@ def process_project(source_dir, mode_choice, include_globals):
     logger.log(f"\nDONE. {injected_count} files injected, {copied_count} files copied silently.")
     logger.log(f"Debug Build Location: {target_dir}")
 
-    # Save the report
     logger.save_report(target_dir)
 
 
 def main():
-    logger.log("--- Smart Dependency-Aware Debugger with Reporting ---")
+    logger.log("--- Object-Aware Debugger with Reporting ---")
     raw_path = input("Enter path to your Project Folder: ").strip()
     input_path = raw_path.strip('"').strip("'")
     logger.log(f"> Target Path: {input_path}")
