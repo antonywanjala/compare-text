@@ -79,14 +79,62 @@ _ad_logger(3, locals())
 import time
 _ad_logger(4, locals())
 import ast
+_ad_logger(5, locals())
+import datetime
 
 
 # ==========================================
-# 1. THE LOGGER HEADER (Standard)
+# 0. SESSION LOGGER (Captures Console Output)
 # ==========================================
-_ad_logger(10, locals())
+_ad_logger(11, locals())
+class SessionLogger:
+    _ad_logger(12, locals())
+    def __init__(self):
+        _ad_logger(13, locals())
+        self.logs = []
+
+    _ad_logger(15, locals())
+    def log(self, message=""):
+        # Print to console
+        _ad_logger(17, locals())
+        print(message)
+        # Save to memory (stripping color codes if we used them)
+        _ad_logger(19, locals())
+        self.logs.append(message)
+
+    _ad_logger(21, locals())
+    def save_report(self, target_dir):
+        _ad_logger(22, locals())
+        report_path = os.path.join(target_dir, "_DEBUG_SUMMARY.txt")
+        header = f"""
+==================================================
+      DEBUG INJECTION REPORT
+      Generated: {datetime.datetime.now()}
+==================================================
+_ad_logger(28, locals())
+"""
+        _ad_logger(29, locals())
+        with open(report_path, 'w', encoding='utf-8') as f:
+            _ad_logger(30, locals())
+            f.write(header + "\n")
+            _ad_logger(31, locals())
+            f.write("\n".join(self.logs))
+
+        _ad_logger(33, locals())
+        print(f"\n[REPORT] Summary saved to: {report_path}")
+
+
+# Initialize global logger
+_ad_logger(37, locals())
+logger = SessionLogger()
+
+
+# ==========================================
+# 1. THE LOGGER HEADER (Injected Code)
+# ==========================================
+_ad_logger(43, locals())
 def generate_header(include_globals=False):
-    _ad_logger(11, locals())
+    _ad_logger(44, locals())
     globals_flag = "True" if include_globals else "False"
 
     return f"""
@@ -146,45 +194,46 @@ def _ad_logger(original_line, local_vars, active=True):
 # ==========================================
 # AUTO-DEBUGGER INJECTION END
 # ==========================================
-_ad_logger(70, locals())
+_ad_logger(103, locals())
 """
 
 
 # ==========================================
 # 2. INJECTION LOGIC
 # ==========================================
-_ad_logger(76, locals())
+_ad_logger(109, locals())
 def inject_into_file(file_path, mode_choice, include_globals):
-    _ad_logger(77, locals())
+    _ad_logger(110, locals())
     try:
-        _ad_logger(78, locals())
+        _ad_logger(111, locals())
         with open(file_path, 'r', encoding='utf-8') as f:
-            _ad_logger(79, locals())
+            _ad_logger(112, locals())
             lines = f.readlines()
 
-        _ad_logger(81, locals())
+        _ad_logger(114, locals())
         new_content = [generate_header(include_globals)]
-        _ad_logger(82, locals())
+        _ad_logger(115, locals())
         bracket_level = 0
-        _ad_logger(83, locals())
+        _ad_logger(116, locals())
         in_multiline_string = False
 
-        _ad_logger(85, locals())
+        _ad_logger(118, locals())
         for i, line in enumerate(lines):
-            _ad_logger(86, locals())
+            _ad_logger(119, locals())
             stripped = line.strip()
-            _ad_logger(87, locals())
+            _ad_logger(120, locals())
             indent = line[:len(line) - len(line.lstrip())]
-            _ad_logger(88, locals())
+            _ad_logger(121, locals())
             original_line_num = i + 1
 
+            # Nesting & String State
             bracket_level += (stripped.count('(') + stripped.count('[') + stripped.count('{'))
-            _ad_logger(91, locals())
+            _ad_logger(125, locals())
             bracket_level -= (stripped.count(')') + stripped.count(']') + stripped.count('}'))
             if '"""' in stripped or "'''" in stripped:
-                _ad_logger(93, locals())
+                _ad_logger(127, locals())
                 if (stripped.count('"""') % 2 != 0) or (stripped.count("'''") % 2 != 0):
-                    _ad_logger(94, locals())
+                    _ad_logger(128, locals())
                     in_multiline_string = not in_multiline_string
 
             is_continuation = any(stripped.startswith(w) for w in ('else', 'elif', 'except', 'finally', ')', ']', '}'))
@@ -205,20 +254,15 @@ def inject_into_file(file_path, mode_choice, include_globals):
             f.writelines(new_content)
         return True
     except Exception as e:
-        print(f"ERROR processing {file_path}: {e}")
+        logger.log(f"[ERROR] Failed to process {file_path}: {e}")
         return False
 
 
 # ==========================================
-# 3. IMPORT ANALYZER (AST)
+# 3. DEPENDENCY & RANGE PARSERS
 # ==========================================
-def find_local_dependencies(target_files, all_project_files_map, root_dir):
-    """
-    Parses selected files to find 'import' statements that point to OTHER files
-    within the project.
-    """
+def find_local_dependencies(target_files, all_project_files_map):
     dependencies = set()
-
     for file_path in target_files:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -233,21 +277,12 @@ def find_local_dependencies(target_files, all_project_files_map, root_dir):
                     module_name = node.module
 
                 if module_name:
-                    # Check if this module name maps to a file in our project
-                    # e.g., 'utils.helper' -> utils/helper.py
-                    # Simple check: Convert dots to path separators
                     potential_path = module_name.replace('.', os.sep)
-
-                    # Search through known project files
                     for rel_path, full_path in all_project_files_map.items():
-                        # Match: "utils/helper.py" contains "utils/helper"
                         if rel_path.startswith(potential_path):
                             dependencies.add((rel_path, full_path))
-
-        except Exception as e:
-            # If syntax error in source, just skip
+        except:
             continue
-
     return list(dependencies)
 
 
@@ -267,44 +302,40 @@ def parse_selection(selection_str, max_index):
                 for i in range(start - 1, end):
                     if 0 <= i < max_index:
                         selected_indices.add(i)
-            except ValueError:
+            except:
                 pass
         else:
             try:
                 idx = int(part) - 1
                 if 0 <= idx < max_index:
                     selected_indices.add(idx)
-            except ValueError:
+            except:
                 pass
     return sorted(list(selected_indices))
 
 
 # ==========================================
-# 4. DIRECTORY HANDLER
+# 4. MAIN PROCESS
 # ==========================================
 def process_project(source_dir, mode_choice, include_globals):
     dir_name = os.path.basename(os.path.normpath(source_dir))
     target_dir = os.path.join(os.path.dirname(os.path.normpath(source_dir)), f"{dir_name}_{str(time.time())}_debug_build")
 
     if os.path.exists(target_dir):
-        print(f"\nCleaning old build at: {target_dir}")
+        logger.log(f"Cleaning old build at: {target_dir}")
         shutil.rmtree(target_dir)
 
-    print(f"Cloning project to: {target_dir} ...")
+    logger.log(f"Cloning project to: {target_dir} ...")
     shutil.copytree(source_dir, target_dir)
 
-    # Scan for Python files, IGNORING venv/site-packages
+    # Scan for Python files
     ignored_dirs = {'venv', 'env', '.git', '__pycache__', 'site-packages', 'node_modules', 'dist', 'build'}
     py_files = []
-
-    # Map relative path -> full path for dependency lookup
     file_map = {}
 
-    print("\nScanning project (excluding venv/libs)...")
+    logger.log("\n--- Scanning Project Structure ---")
     for root, dirs, files in os.walk(target_dir):
-        # Modify dirs in-place to skip ignored folders
         dirs[:] = [d for d in dirs if d not in ignored_dirs]
-
         for file in files:
             if file.endswith(".py"):
                 full_path = os.path.join(root, file)
@@ -313,76 +344,81 @@ def process_project(source_dir, mode_choice, include_globals):
                 file_map[rel_path] = full_path
 
     if not py_files:
-        print("No .py files found!")
+        logger.log("[ERROR] No .py files found!")
         return
 
     # Display Menu
-    print(f"\nFound {len(py_files)} User-Created Python files:")
+    logger.log(f"Found {len(py_files)} User-Created Python files:")
     for idx, (rel, full) in enumerate(py_files):
-        print(f"[{idx + 1}] {rel}")
+        logger.log(f"[{idx + 1}] {rel}")
 
-    print("\nWhich MAIN files do you want to debug? (e.g., '1' for main.py)")
+    logger.log("\nWhich MAIN files do you want to debug? (e.g., '1-3' or 'all')")
     selection = input("Enter selection: ").strip()
-    indices_to_inject = parse_selection(selection, len(py_files))
+    logger.log(f"> User Selection: {selection}")
 
-    # Identify Selected Files
+    indices_to_inject = parse_selection(selection, len(py_files))
     selected_files_paths = [py_files[i][1] for i in indices_to_inject]
 
-    # --- DEPENDENCY CHECK ---
-    print("\nChecking for local dependencies...")
-    local_deps = find_local_dependencies(selected_files_paths, file_map, target_dir)
-
-    # Filter out files already selected
+    # Check Dependencies
+    logger.log("\n--- Analyzing Dependencies ---")
+    local_deps = find_local_dependencies(selected_files_paths, file_map)
     new_deps = [d for d in local_deps if d[1] not in selected_files_paths]
 
     final_injection_list = set(selected_files_paths)
 
     if new_deps:
-        print(f"\n[Detected Imports] Your selected files import these LOCAL files:")
+        logger.log(f"[Detected Imports] These files are imported by your selection:")
         for rel, full in new_deps:
-            print(f" - {rel}")
+            logger.log(f" - {rel}")
 
-        confirm = input("Include these dependencies in debugging? (y/n): ").strip().lower()
+        confirm = input("Include these dependencies? (y/n): ").strip().lower()
+        logger.log(f"> Include Dependencies: {confirm}")
+
         if confirm == 'y':
             for _, full in new_deps:
                 final_injection_list.add(full)
     else:
-        print("No additional local dependencies found (imports are likely third-party).")
+        logger.log("No additional local dependencies found.")
 
-    # Execute Injection
-    print("\n--- Processing ---")
+    # Execute
+    logger.log("\n--- Injection Status ---")
     injected_count = 0
+    copied_count = 0
+
     for rel, full_path in py_files:
         if full_path in final_injection_list:
             if inject_into_file(full_path, mode_choice, include_globals):
-                print(f"[INJECTED] {rel}")
+                logger.log(f"[INJECTED] {rel}")
                 injected_count += 1
         else:
-            print(f"[COPIED]   {rel} (Silent)")
+            logger.log(f"[COPIED]   {rel}")
+            copied_count += 1
 
-    print(f"\nDONE. {injected_count} files injected.")
-    print(f"Run your project from: {target_dir}")
+    logger.log(f"\nDONE. {injected_count} files injected, {copied_count} files copied silently.")
+    logger.log(f"Debug Build Location: {target_dir}")
+
+    # Save the report
+    logger.save_report(target_dir)
 
 
 def main():
-    print("--- Smart Dependency-Aware Debugger ---")
+    logger.log("--- Smart Dependency-Aware Debugger with Reporting ---")
     raw_path = input("Enter path to your Project Folder: ").strip()
     input_path = raw_path.strip('"').strip("'")
+    logger.log(f"> Target Path: {input_path}")
 
     if not os.path.exists(input_path) or not os.path.isdir(input_path):
-        print("Error: Valid directory path required.")
+        logger.log("Error: Valid directory path required.")
         return
 
-    print("\nDebug Mode:")
-    print("1. All lines (Full Trace)")
-    print("2. Selective (Only lines with # DEBUG)")
+    logger.log("\nDebug Mode: 1.Full Trace | 2.Selective (# DEBUG)")
     mode_choice = input("Select mode (1 or 2): ").strip()
+    logger.log(f"> Mode: {mode_choice}")
 
-    print("\nScope:")
-    print("1. Local only")
-    print("2. Global + Local")
+    logger.log("\nScope: 1.Local only | 2.Global + Local")
     scope_choice = input("Select scope (1 or 2): ").strip()
     include_globals = (scope_choice == '2')
+    logger.log(f"> Scope: {scope_choice}")
 
     process_project(input_path, mode_choice, include_globals)
 
