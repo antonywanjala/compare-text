@@ -1,33 +1,87 @@
-from english_words import get_english_words_set
+import urllib.request
+from collections import Counter
 
 
-def find_anagrams(user_input):
-    # 1. Clean the input (remove spaces and non-letters)
-    target = "".join(filter(str.isalpha, user_input.lower()))
-    target_sorted = sorted(target)
+def find_all_anagrams(user_input, max_words=3):
+    # --- 1. SETUP & DICTIONARY LOADER ---
+    print("Loading dictionary... (this happens once)")
+    url = "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
+    try:
+        with urllib.request.urlopen(url) as response:
+            all_words = response.read().decode('utf-8').splitlines()
+    except Exception as e:
+        return [f"Error downloading dictionary: {e}"]
 
-    # 2. Get a set of valid English words (Alpha only)
-    # This replaces the need for a local words.txt file
-    web2_words = get_english_words_set(['web2'], lower=True)
+    # --- 2. PRE-PROCESSING ---
+    # Clean input: lowercase, keep only letters
+    source_str = "".join(filter(str.isalpha, user_input.lower()))
+    source_count = Counter(source_str)
 
-    results = []
+    # Filter dictionary: Keep words that can actually be formed by the input
+    candidates = []
+    for word in all_words:
+        word = word.lower()
+        # Optimization: Skip tiny words to reduce noise (unless 'a' or 'i')
+        if len(word) < 2 and word not in ['a', 'i']:
+            continue
 
-    # 3. Compare sorted signatures
-    for word in web2_words:
-        if len(word) == len(target):
-            if sorted(word) == target_sorted:
-                results.append(word)
+        word_count = Counter(word)
+        # Check if word is a subset of source letters
+        if all(word_count[char] <= source_count[char] for char in word_count):
+            candidates.append(word)
 
-    return results
+    # Sort candidates by length (longest first finds interesting phrases faster)
+    candidates.sort(key=len, reverse=True)
+
+    print(f"Processing '{user_input}' ({len(source_str)} letters)...")
+    print(f"Found {len(candidates)} candidate words compatible with your letters.")
+    print("-" * 40)
+
+    found_anagrams = set()
+
+    # --- 3. RECURSIVE SOLVER ---
+    def backtrack(current_phrase, letter_pool):
+        # Base Case: If pool is empty, we found a perfect anagram
+        if sum(letter_pool.values()) == 0:
+            phrase = " ".join(current_phrase)
+            if phrase not in found_anagrams:
+                # Print immediately so user sees progress
+                print(f"FOUND: {phrase.title()}")
+                found_anagrams.add(phrase)
+            return
+
+        # Constraint: Stop if we exceed max word count (prevents infinite running)
+        if len(current_phrase) >= max_words:
+            return
+
+        # Try to find the next word
+        for word in candidates:
+            # Optimization: Only check words that fit inside current letter_pool
+            # (We do a quick length check first for speed)
+            if len(word) > sum(letter_pool.values()):
+                continue
+
+            word_count = Counter(word)
+
+            # Check if this word can be built from remaining letters
+            if all(word_count[char] <= letter_pool[char] for char in word_count):
+                # Create new pool with letters subtracted
+                new_pool = letter_pool - word_count
+
+                # RECURSE: Go deeper
+                backtrack(current_phrase + [word], new_pool)
+
+    # Start the search
+    backtrack([], source_count)
+
+    if not found_anagrams:
+        print("No exact multi-word anagrams found with current constraints.")
+    else:
+        print("-" * 40)
+        print(f"Search complete. Found {len(found_anagrams)} variations.")
 
 
-# Example Usage
-phrase = "Antony Wanjala"  # Note: This specific name is 13 letters!
-matches = find_anagrams(phrase)
-
-if matches:
-    print(f"Single-word anagrams found: {', '.join(matches)}")
-else:
-    # This is more likely for long names
-    print(f"No single-word anagrams for '{phrase}'.")
-    print("Longer names usually require multi-word combinations.")
+# --- RUN IT ---
+user_phrase = input("Enter phrase: ")
+# Note: max_words=3 prevents the script from running forever on long names
+find_all_anagrams(user_phrase, max_words=3)
