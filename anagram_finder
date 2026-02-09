@@ -1,79 +1,121 @@
 import urllib.request
 import sys
+import os
 from collections import Counter
 
 
-def find_anagrams_split_files(user_input, max_words=4, entries_per_file=29999):
-    # --- 1. DICTIONARY SETUP ---
-    print("Loading common English words...")
+def find_coherent_anagrams(user_input, max_words=5, split_limit=29999):
+    # --- 1. SETUP & SCORING DICTIONARY ---
+    print("[1/4] Downloading frequency-ordered dictionary...")
     url = "https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt"
+
     try:
         with urllib.request.urlopen(url) as response:
-            words_list = response.read().decode('utf-8').splitlines()
+            # Keep order! The top of the list is most common (Rank 1)
+            raw_words = response.read().decode('utf-8').splitlines()
     except Exception as e:
         print(f"Error: {e}")
         return
 
-    # --- 2. PRE-PROCESSING ---
+    # Map each word to its 'commonness' rank (lower is better)
+    # "the" = 0, "of" = 1, ... "zucchini" = 9000
+    word_ranks = {word.lower(): i for i, word in enumerate(raw_words)}
+
+    # --- 2. INPUT PROCESSING ---
     clean_target = "".join(filter(str.isalpha, user_input.lower()))
     target_count = Counter(clean_target)
 
+    # Filter candidates: Must fit in target letters & be >1 char (unless 'a' or 'i')
     candidates = []
-    for word in words_list:
-        word = word.lower()
-        if len(word) < 2 and word not in ['a', 'i']: continue
-        word_count = Counter(word)
-        if all(word_count[c] <= target_count[c] for c in word_count):
-            candidates.append(word)
+    print(f"[2/4] Filtering valid words for '{user_input}'...")
 
+    for word in raw_words:
+        w = word.lower()
+        if len(w) < 2 and w not in ['a', 'i']: continue
+
+        w_count = Counter(w)
+        if all(w_count[c] <= target_count[c] for c in w_count):
+            candidates.append(w)
+
+    # Optimization: Sort candidates by length (longer words first = better phrases)
     candidates.sort(key=len, reverse=True)
-    total_candidates = len(candidates)
 
+    total_candidates = len(candidates)
     if total_candidates == 0:
         print("No valid words found.")
         return
 
-    # --- 3. STATE TRACKING ---
-    found_anagrams = set()
-    match_count = 0
+    # --- 3. FILE MANAGEMENT ---
+    # We will write 'Best Hits' to one file, and 'Everything' to split files
+    best_hits_file = "best_hits.txt"
+    with open(best_hits_file, "w") as f:
+        f.write(f"Top Coherent Anagrams for: {user_input}\n")
+        f.write("(Sorted by word commonness - likely to make sense)\n")
+        f.write("=" * 50 + "\n")
+
     file_index = 1
-    current_file_entries = 0
-    current_file_handle = None
+    current_entries = 0
+    current_file = None
 
-    def get_file_handle():
-        nonlocal current_file_handle, file_index, current_file_entries
-        if current_file_handle is None or current_file_entries >= entries_per_file:
-            if current_file_handle:
-                current_file_handle.close()
-
-            filename = f"anagrams_part{file_index}.txt"
-            current_file_handle = open(filename, "w")
-            current_file_handle.write(f"Anagrams for: {user_input} (Part {file_index})\n")
-            current_file_handle.write("=" * 40 + "\n")
-
-            print(f"\n[System] Opening new file: {filename}")
+    def get_bulk_file():
+        nonlocal current_file, file_index, current_entries
+        if current_file is None or current_entries >= split_limit:
+            if current_file: current_file.close()
+            fname = f"all_anagrams_part{file_index}.txt"
+            current_file = open(fname, "w")
+            current_file.write(f"Bulk Anagrams Part {file_index}\n")
+            print(f"\n[System] Created new bulk file: {fname}")
             file_index += 1
-            current_file_entries = 0
-        return current_file_handle
+            current_entries = 0
+        return current_file
 
-    # --- 4. RECURSIVE SOLVER ---
-    def backtrack(path, current_pool):
-        nonlocal match_count, current_file_entries
+    # --- 4. THE SOLVER ---
+    print(f"[3/4] Starting search ({total_candidates} root words)...")
 
-        if sum(current_pool.values()) == 0:
-            phrase = " ".join(path).title()
-            if phrase not in found_anagrams:
-                found_anagrams.add(phrase)
-                match_count += 1
-                current_file_entries += 1
+    found_hashes = set()
+    matches = 0
+    best_matches = []
 
-                # Get the correct file handle (handles splitting logic)
-                fh = get_file_handle()
-                fh.write(f"{phrase}\n")
+    def backtrack(path, pool):
+        nonlocal matches, current_entries
 
-                # Feedback to console (every 100 matches to keep it fast)
-                if match_count % 100 == 0:
-                    sys.stdout.write(f'\r✨ Found {match_count} matches...')
+        # Base Case: Valid Anagram Found
+        if sum(pool.values()) == 0:
+            phrase_str = " ".join(path)
+            # Check for duplicates using a sorted tuple (ignoring word order for uniqueness)
+            phrase_hash = tuple(sorted(path))
+
+            if phrase_hash not in found_hashes:
+                found_hashes.add(phrase_hash)
+                matches += 1
+                current_entries += 1
+
+                # --- A. CALCULATE COHERENCE SCORE ---
+                # Score = Average Rank of words used.
+                # Lower score = simpler, more common words = more likely to be a sentence.
+                avg_rank = sum(word_ranks[w] for w in path) / len(path)
+
+                # Penalty for very short phrases (1-2 words often boring) or too long (word salad)
+                # We prefer 3-4 word phrases usually
+
+                formatted_line = f"{phrase_str.title()}"
+
+                # --- B. SAVE TO BULK FILE ---
+                fh = get_bulk_file()
+                fh.write(formatted_line + "\n")
+
+                # --- C. CHECK IF "STAND OUT" (Top 15% of coherence) ---
+                # Threshold: Arbitrary, but roughly top 2000 common words on average
+                if avg_rank < 2500:
+                    best_matches.append((avg_rank, formatted_line))
+
+                    # Live update to console if it's a really good one
+                    if avg_rank < 1000:
+                        sys.stdout.write(f'\r✨ High Probability: {formatted_line}               \n')
+
+                # Progress ticker
+                if matches % 500 == 0:
+                    sys.stdout.write(f'\rProcessed {matches} combinations...')
                     sys.stdout.flush()
             return
 
@@ -81,32 +123,53 @@ def find_anagrams_split_files(user_input, max_words=4, entries_per_file=29999):
             return
 
         for word in candidates:
-            if len(word) > sum(current_pool.values()): continue
-            word_count = Counter(word)
-            if all(current_pool[c] >= word_count[c] for c in word_count):
-                new_pool = current_pool - word_count
+            # Quick check: length
+            if len(word) > sum(pool.values()): continue
+
+            w_count = Counter(word)
+            # Check if word fits in pool
+            can_fit = True
+            for char, count in w_count.items():
+                if pool[char] < count:
+                    can_fit = False
+                    break
+
+            if can_fit:
+                new_pool = pool.copy()
+                new_pool.subtract(w_count)
                 backtrack(path + [word], new_pool)
 
-    # --- 5. EXECUTION ---
-    print(f"Starting search. Splitting every {entries_per_file} entries.")
+    # --- START RECURSION ---
+    for i, root in enumerate(candidates):
+        # Progress Bar
+        perc = (i / total_candidates) * 100
+        sys.stdout.write(f'\rSearch Progress: {perc:.1f}% | Checking root: {root}          ')
 
-    for i, root_word in enumerate(candidates):
-        # Console Progress Bar
-        percent = 100 * ((i + 1) / total_candidates)
-        bar = '█' * int(20 * (i + 1) // total_candidates) + '-' * (20 - int(20 * (i + 1) // total_candidates))
-        sys.stdout.write(f'\rSearch Progress: |{bar}| {percent:.1f}%')
-        sys.stdout.flush()
+        root_c = Counter(root)
+        start_pool = target_count.copy()
+        start_pool.subtract(root_c)
+        backtrack([root], start_pool)
 
-        root_count = Counter(root_word)
-        backtrack([root_word], target_count - root_count)
+    if current_file:
+        current_file.close()
 
-    if current_file_handle:
-        current_file_handle.close()
+    # --- 5. FINALIZE BEST HITS ---
+    print(f"\n[4/4] Sorting best hits...")
 
-    print(f"\n\nSearch complete! Total entries: {match_count}")
-    print(f"Files generated: {file_index - 1}")
+    # Sort by Score (lowest rank first)
+    best_matches.sort(key=lambda x: x[0])
+
+    with open(best_hits_file, "a") as f:
+        for score, phrase in best_matches:
+            # We only save the top ones to keep this file "premium"
+            f.write(f"{phrase} \t(Coherence Score: {int(score)})\n")
+
+    print("=" * 60)
+    print(f"DONE. Found {matches} total anagrams.")
+    print(f"--> Open '{best_hits_file}' for the most coherent phrases.")
+    print(f"--> Open 'all_anagrams_part1.txt' for the raw list.")
 
 
 # --- RUN ---
-phrase = input("Enter phrase: ")
-find_anagrams_split_files(phrase)
+u_in = input("Enter phrase: ")
+find_coherent_anagrams(u_in)
