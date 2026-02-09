@@ -2,86 +2,99 @@ import urllib.request
 from collections import Counter
 
 
-def find_all_anagrams(user_input, max_words=3):
-    # --- 1. SETUP & DICTIONARY LOADER ---
-    print("Loading dictionary... (this happens once)")
+def find_valid_english_anagrams(user_input, max_words=4, min_word_len=2):
+    # --- 1. LOAD DICTIONARY ---
+    print("Fetching English dictionary...")
     url = "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
     try:
         with urllib.request.urlopen(url) as response:
-            all_words = response.read().decode('utf-8').splitlines()
+            raw_data = response.read().decode('utf-8')
+            # Create a set for fast lookups
+            all_words = set(raw_data.splitlines())
     except Exception as e:
-        return [f"Error downloading dictionary: {e}"]
+        return [f"Error: {e}"]
 
-    # --- 2. PRE-PROCESSING ---
-    # Clean input: lowercase, keep only letters
-    source_str = "".join(filter(str.isalpha, user_input.lower()))
-    source_count = Counter(source_str)
+    # --- 2. PREPARE INPUT ---
+    # Standardize input: lowercase, removed spaces/punctuation
+    clean_input = "".join(filter(str.isalpha, user_input.lower()))
+    input_counter = Counter(clean_input)
 
-    # Filter dictionary: Keep words that can actually be formed by the input
+    # --- 3. FILTER CANDIDATES ---
+    # We only keep words that can actually be built from the input letters.
+    # We also enforce a minimum length to avoid spamming 1-letter words.
     candidates = []
+
+    print(f"Filtering valid words for '{user_input}'...")
+
     for word in all_words:
         word = word.lower()
-        # Optimization: Skip tiny words to reduce noise (unless 'a' or 'i')
-        if len(word) < 2 and word not in ['a', 'i']:
+
+        # Skip words that are too short (unless it's 'a' or 'i')
+        if len(word) < min_word_len and word not in ['a', 'i']:
             continue
 
-        word_count = Counter(word)
-        # Check if word is a subset of source letters
-        if all(word_count[char] <= source_count[char] for char in word_count):
+        # Check if the dictionary word can be formed by our input letters
+        word_counter = Counter(word)
+        # The word is valid ONLY if we have enough of every letter it needs
+        if all(word_counter[char] <= input_counter[char] for char in word_counter):
             candidates.append(word)
 
-    # Sort candidates by length (longest first finds interesting phrases faster)
+    # Sort by length (longest words first) to find "meaningful" phrases
     candidates.sort(key=len, reverse=True)
 
-    print(f"Processing '{user_input}' ({len(source_str)} letters)...")
-    print(f"Found {len(candidates)} candidate words compatible with your letters.")
-    print("-" * 40)
+    print(f"Found {len(candidates)} valid English words that fit your letters.")
+    print("-" * 50)
 
-    found_anagrams = set()
+    # --- 4. BACKTRACKING SOLVER ---
+    results = set()
 
-    # --- 3. RECURSIVE SOLVER ---
-    def backtrack(current_phrase, letter_pool):
-        # Base Case: If pool is empty, we found a perfect anagram
+    def solve(current_phrase, letter_pool):
+        # BASE CASE: If no letters are left, we have a valid sentence
         if sum(letter_pool.values()) == 0:
-            phrase = " ".join(current_phrase)
-            if phrase not in found_anagrams:
-                # Print immediately so user sees progress
-                print(f"FOUND: {phrase.title()}")
-                found_anagrams.add(phrase)
+            final_phrase = " ".join(current_phrase).title()
+            if final_phrase not in results:
+                print(f"MATCH: {final_phrase}")
+                results.add(final_phrase)
             return
 
-        # Constraint: Stop if we exceed max word count (prevents infinite running)
+        # STOPPING CONDITIONS
+        # 1. Phrase is too long (too many short words)
         if len(current_phrase) >= max_words:
             return
 
-        # Try to find the next word
+        # 2. Remaining letters are too few to form valid words?
+        # (Optimization: We skip this for simplicity in this version)
+
+        # RECURSION
         for word in candidates:
-            # Optimization: Only check words that fit inside current letter_pool
-            # (We do a quick length check first for speed)
+            # Optimization: Don't check words longer than remaining pool
             if len(word) > sum(letter_pool.values()):
                 continue
 
-            word_count = Counter(word)
+            word_counter = Counter(word)
 
-            # Check if this word can be built from remaining letters
-            if all(word_count[char] <= letter_pool[char] for char in word_count):
-                # Create new pool with letters subtracted
-                new_pool = letter_pool - word_count
+            # check if this word fits in the CURRENT pool
+            can_fit = True
+            for char, count in word_counter.items():
+                if letter_pool[char] < count:
+                    can_fit = False
+                    break
 
-                # RECURSE: Go deeper
-                backtrack(current_phrase + [word], new_pool)
+            if can_fit:
+                # Create a new pool with the word removed
+                new_pool = letter_pool.copy()
+                new_pool.subtract(word_counter)
 
-    # Start the search
-    backtrack([], source_count)
+                # Recursive Step: Add word to phrase and dive deeper
+                solve(current_phrase + [word], new_pool)
 
-    if not found_anagrams:
-        print("No exact multi-word anagrams found with current constraints.")
-    else:
-        print("-" * 40)
-        print(f"Search complete. Found {len(found_anagrams)} variations.")
+    # Start the engine
+    solve([], input_counter)
+
+    if not results:
+        print("No exact multi-word anagrams found using this dictionary.")
 
 
-# --- RUN IT ---
-user_phrase = input("Enter phrase: ")
-# Note: max_words=3 prevents the script from running forever on long names
-find_all_anagrams(user_phrase, max_words=3)
+# --- EXAMPLE RUN ---
+user_phrase = input("Enter your phrase to anagram: ")
+find_valid_english_anagrams(user_phrase)
