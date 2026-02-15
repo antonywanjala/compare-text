@@ -1,83 +1,114 @@
+import time
 import urllib.request
 import sys
+import os
+import csv
 from collections import Counter
 
 
 def find_strict_anagrams(user_input, max_words=5, split_limit=29999):
-    # --- 1. SETUP & DICTIONARY ---
-    print("[1/3] Loading Strict Dictionary (Filtering Abbreviations)...")
-    url = "https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt"
+    # --- 1. SETUP & RESOURCES ---
+    print("[1/3] Loading Resources...")
 
+    blacklist_file = "blacklist.csv"
+    blacklist = set()
+    default_blacklist = ['ca', 'ny', 'tx', 'fl', 'wa', 'al', 'ok', 'id', 'oh', 'or', 'la', 'ncaa']
+
+    # Load/Create Blacklist CSV
+    if not os.path.exists(blacklist_file):
+        try:
+            with open(blacklist_file, "w", newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["Category", "Uniques"])
+                for word in default_blacklist:
+                    writer.writerow(["Default", word])
+            blacklist = set(default_blacklist)
+        except Exception as e:
+            print(f"   > Error creating CSV: {e}")
+    else:
+        try:
+            with open(blacklist_file, "r", newline='') as f:
+                reader = csv.DictReader(f)
+                if reader.fieldnames and 'Uniques' in reader.fieldnames:
+                    for row in reader:
+                        val = row.get('Uniques', '').strip().lower()
+                        if val: blacklist.add(val)
+        except Exception as e:
+            print(f"   > Error reading CSV: {e}")
+
+    # Load Dictionary
+    url = "https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt"
     try:
         with urllib.request.urlopen(url) as response:
             raw_words = response.read().decode('utf-8').splitlines()
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error fetching dictionary: {e}")
         return
 
-    # --- 2. THE STRICT FILTER ---
-    # We remove anything that looks like a state code, acronym, or noise
-    blacklist = {'ca', 'ny', 'tx', 'fl', 'wa', 'al', 'ok', 'id', 'oh', 'or', 'la'}
-
+    # --- 2. FILTERING ---
     clean_target = "".join(filter(str.isalpha, user_input.lower()))
     target_count = Counter(clean_target)
 
     candidates = []
     for word in raw_words:
         w = word.lower()
-        # Rule 1: Must be longer than 2 letters OR be 'a'/'i'
-        if len(w) < 3 and w not in ['a', 'i']:
+        if (len(w) < 3 and w not in ['a', 'i']) or w in blacklist:
             continue
-        # Rule 2: Explicitly remove state codes/short-forms
-        if w in blacklist:
-            continue
-        # Rule 3: Must fit in our letter pool
         w_count = Counter(w)
         if all(w_count[c] <= target_count[c] for c in w_count):
             candidates.append(w)
-
     candidates.sort(key=len, reverse=True)
 
-    # --- 3. THE SOLVER ---
-    print(f"[2/3] Searching for pure phrases in '{user_input}'...")
+    # --- 3. THE SOLVER & MULTI-OUTPUT ---
+    print(f"[2/3] Searching for phrases in '{user_input}'...")
 
     found_hashes = set()
     matches = 0
     file_index = 1
     current_entries = 0
-    current_file = None
+    current_part_file = None
 
-    def get_file():
-        nonlocal current_file, file_index, current_entries
-        if current_file is None or current_entries >= split_limit:
-            if current_file: current_file.close()
-            fname = f"strict_anagrams_part{file_index}.txt"
-            current_file = open(fname, "w")
+    # Prepare the "Comma Separated" Master File
+    safe_name = "".join(x for x in user_input if x.isalnum())[:15]
+    master_filename = f"MASTER_list_{safe_name}_{str(time.time())}.txt"
+    master_file = open(master_filename, "w")
+    master_file.write("[")  # Start the bracketed list
+
+    def get_part_file():
+        nonlocal current_part_file, file_index, current_entries
+        if current_part_file is None or current_entries >= split_limit:
+            if current_part_file: current_part_file.close()
+            fname = f"anagram_res_{safe_name}_{str(time.time())}_{file_index}.txt"
+            current_part_file = open(fname, "w")
             file_index += 1
             current_entries = 0
-        return current_file
+        return current_part_file
 
     def backtrack(path, pool):
         nonlocal matches, current_entries
-
         if sum(pool.values()) == 0:
             phrase_hash = tuple(sorted(path))
             if phrase_hash not in found_hashes:
+                phrase_str = " ".join(path).title()
+
+                # 1. Write to Master List (with comma if not the first item)
+                if matches > 0:
+                    master_file.write(", ")
+                master_file.write(phrase_str)
+
+                # 2. Write to Standard Part File
+                get_part_file().write(phrase_str + "\n")
+
                 found_hashes.add(phrase_hash)
                 matches += 1
                 current_entries += 1
 
-                phrase_str = " ".join(path).title()
-                get_file().write(phrase_str + "\n")
-
                 if matches % 100 == 0:
-                    sys.stdout.write(f'\r✨ Found {matches} strict anagrams...')
+                    sys.stdout.write(f'\r✨ Found {matches}...')
                     sys.stdout.flush()
             return
 
-        if len(path) >= max_words:
-            return
-
+        if len(path) >= max_words: return
         for word in candidates:
             if len(word) > sum(pool.values()): continue
             w_count = Counter(word)
@@ -89,8 +120,14 @@ def find_strict_anagrams(user_input, max_words=5, split_limit=29999):
         sys.stdout.write(f'\rProgress: {(i / len(candidates)) * 100:.1f}% ')
         backtrack([root], target_count - Counter(root))
 
-    if current_file: current_file.close()
-    print(f"\n[3/3] Done! Total: {matches} results across {file_index - 1} file(s).")
+    # Finalize files
+    master_file.write("}")  # Close the bracketed list
+    master_file.close()
+    if current_part_file: current_part_file.close()
+
+    print(f"\n[3/3] Done!")
+    print(f" > Standard parts created: {file_index - 1} file(s)")
+    print(f" > Master comma-list created: {master_filename}")
 
 
 # --- RUN ---
