@@ -1,0 +1,44 @@
+import os
+import time
+
+from PyPDF2 import PdfMerger
+
+def collect_pdfs(super_folder):
+    pdf_files = []
+    for root, _, files in os.walk(super_folder):
+        for file in files:
+            if file.lower().endswith(".pdf"):
+                pdf_files.append(os.path.join(root, file))
+    return sorted(pdf_files)
+
+def combine_pdfs(super_folder, output_path=None):
+    pdf_files = collect_pdfs(super_folder)
+
+    if not pdf_files:
+        print("No PDF files found.")
+        return None
+
+    if output_path is None:
+        output_path = os.path.join(super_folder, "combined.pdf")
+
+    merger = PdfMerger()
+
+    for pdf in pdf_files:
+        try:
+            merger.append(pdf)
+            print(f"Added: {pdf}")
+        except Exception as e:
+            print(f"Could not add {pdf}: {e}")
+
+    merger.write(output_path)
+    merger.close()
+
+    print(f"\nCombined PDF created: {os.path.abspath(output_path)}")
+    return os.path.abspath(output_path)
+
+if __name__ == "__main__":
+    super_folder = "input\\file\\path\\here"
+    output_file = "input\\file\\path\\here"
+
+    output_file = output_file if output_file else None
+    combine_pdfs(super_folder, output_file)
