@@ -1,0 +1,55 @@
+import sys
+import os
+
+
+def alphabet_index_converter(text):
+    result = []
+    # Tracks if the previous character was a letter to manage spacing
+    last_was_alpha = False
+
+    for char in text:
+        if char.isalpha():
+            # Add a space between indices of consecutive letters
+            if last_was_alpha:
+                result.append(" ")
+            # ord() gets ASCII value; subtract 96 for lowercase 'a' (97) to get 1
+            index = str(ord(char.lower()) - 96)
+            result.append(index)
+            last_was_alpha = True
+        else:
+            result.append(char)
+            last_was_alpha = False
+
+    return "".join(result)
+
+
+def process_file(input_path):
+    if not os.path.exists(input_path):
+        print(f"Error: File '{input_path}' not found.")
+        return
+
+    try:
+        with open(input_path, 'r') as file:
+            content = file.read()
+
+        converted_text = alphabet_index_converter(content)
+
+        # Save to a new file
+        output_path = f"converted_{os.path.basename(input_path)}"
+        with open(output_path, 'w') as file:
+            file.write(converted_text)
+
+        print(f"Success! Converted text saved to: {output_path}")
+        print("-" * 30)
+        print(converted_text)
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        process_file(sys.argv)
+    else:
+        filename = input("Enter the path to your .txt file: ")
+        process_file(filename)
