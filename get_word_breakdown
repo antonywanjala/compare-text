@@ -1,0 +1,78 @@
+import os
+
+
+def get_word_breakdown(word):
+    """Converts 'abc' into '1+2+3=6'."""
+    if not word:
+        return ""
+
+    # Get the list of numbers:
+    indices = [ord(char.lower()) - 96 for char in word if char.isalpha()]
+
+    if not indices:
+        return word
+
+    # Create the string "1+2+3"
+    calculation = "+".join(map(str, indices))
+    # Calculate the total sum
+    total = sum(indices)
+
+    return f"{calculation}={total}"
+
+
+def process_text_to_breakdowns(text):
+    """
+    Iterates through text and replaces words with their
+    full addition breakdown.
+    """
+    result = []
+    current_word = []
+
+    for char in text:
+        if char.isalpha():
+            current_word.append(char)
+        else:
+            if current_word:
+                result.append(get_word_breakdown("".join(current_word)))
+                current_word = []
+            result.append(char)
+
+    if current_word:
+        result.append(get_word_breakdown("".join(current_word)))
+
+    return "".join(result)
+
+
+def main():
+    print("--- Word to Math Breakdown ---")
+    choice = input("Convert (F)ile or (S)tring? ").strip().lower()
+
+    if choice == 's':
+        user_input = input("Enter text: ")
+        print(f"\nResult: {process_text_to_breakdowns(user_input)}")
+
+    elif choice == 'f':
+        path = input("Enter path to .txt file: ").strip().replace('"', '').replace("'", "")
+
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            output = process_text_to_breakdowns(content)
+
+            dir_name, file_name = os.path.split(path)
+            out_path = os.path.join(dir_name, f"breakdown_{file_name}")
+
+            with open(out_path, 'w', encoding='utf-8') as f:
+                f.write(output)
+
+            print(f"\nSuccess! Detailed math saved to: {out_path}")
+
+        except FileNotFoundError:
+            print(f"Error: File not found at {path}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+
+if __name__ == "__main__":
+    main()
