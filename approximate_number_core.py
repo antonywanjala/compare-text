@@ -5,6 +5,7 @@ import time
 import math
 import warnings
 from import_data import import_from_text_file_using_full_path
+
 # Suppress openpyxl warnings if they appear
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
@@ -98,7 +99,7 @@ def to_custom_markdown(df, max_cell_length):
 
 
 def generate_max_budgeted_prompt(df, required_rows, observation, table_anchor, coordinates_block, max_prompt_chars,
-                                 max_cell_length, temporal_linguistic_fiscal_path):
+                                 max_cell_length, temporal_linguistic_fiscal_sentence):
     total_rows = len(df)
     if not required_rows:
         return ""
@@ -106,20 +107,19 @@ def generate_max_budgeted_prompt(df, required_rows, observation, table_anchor, c
     current_start = min(required_rows)
     current_end = max(required_rows)
     best_prompt = ""
-    temporal_linguistic_fiscal = import_from_text_file_using_full_path(temporal_linguistic_fiscal_path)
 
     while True:
         slice_df = df.loc[current_start: current_end] if current_start in df.index else df.iloc[0:1]
         md_text = to_custom_markdown(slice_df, max_cell_length)
-        temporal_linguistic_fiscal_sentence = " ".join(temporal_linguistic_fiscal)
+
         temp_prompt = (
-            f"Given {observation} within the context of the full dataset {table_anchor},\n"
-            f"consider the following target coordinates:\n{coordinates_block}\n\n"
-            f"Here is the data payload mapping (Payload Size: {len(md_text):,} chars):\n"
-            f"```markdown\n{md_text}\n```\n\n"
-            f"Based on this structural snapshot, how do those specific coordinate values characterization "
-            f"and/or delineate the broader trends across the dataset? Present the relationship between the previous target coordinates and the data payload mapping in a VBA, C++, and/or Python script that adequately presents said relationship into a script." +
-            temporal_linguistic_fiscal_sentence
+                f"Given {observation} within the context of the full dataset {table_anchor},\n"
+                f"consider the following target coordinates:\n{coordinates_block}\n\n"
+                f"Here is the data payload mapping (Payload Size: {len(md_text):,} chars):\n"
+                f"```markdown\n{md_text}\n```\n\n"
+                f"Based on this structural snapshot, how do those specific coordinate values characterization "
+                f"and/or delineate the broader trends across the dataset? Present the relationship between the previous target coordinates and the data payload mapping in a VBA, C++, and/or Python script that adequately presents said relationship into a script. Assign a tag description (eg. CC, CD, DT, etc.) to each substring and explain how that relationship (between substring and overarching statement can be delineated in subsequent, novel and/or incumbent substr-tag relationhips and emphasize the relationship between the target coordinates and the payload-at-large. Pay heed to how each substr operates." +
+                temporal_linguistic_fiscal_sentence
         )
 
         if len(temp_prompt) <= max_prompt_chars:
@@ -186,7 +186,7 @@ def save_chunk(ledger_data, ledger_cols, base_output_name, action, chunk_idx, ou
 
 def process_iter_group(element_group, df_chunk, observation, table_anchor, max_prompt_chars, max_cell_length,
                        input_abs_path, epoch_now, ledger_data, gen_type, prompts_dir, chunk_idx, prompt_counter,
-                       temporal_linguistic_fiscal_path):
+                       temporal_linguistic_fiscal_sentence):
     """Helper method to isolate processing logic. Now also writes individual prompts to .txt files."""
     combo_rows = [item[0] for item in element_group]
     callout_lines = []
@@ -201,7 +201,7 @@ def process_iter_group(element_group, df_chunk, observation, table_anchor, max_p
 
     final_prompt_payload = generate_max_budgeted_prompt(
         df_chunk, combo_rows, observation, table_anchor, coordinates_block, max_prompt_chars, max_cell_length,
-        temporal_linguistic_fiscal_path
+        temporal_linguistic_fiscal_sentence
     )
 
     # ---------------------------------------------------------
@@ -245,10 +245,15 @@ def generate_user_prompts():
     chunk_iter, input_abs_path, input_chunk_size, ext = load_user_file_chunked()
 
     # Prompt user for the path to the temporal_linguistic_fiscal variable source text file
+    temporal_linguistic_fiscal_sentence = ""
     while True:
-        temporal_linguistic_fiscal_path = input("Enter the full path to the text file for 'temporal_linguistic_fiscal': ").strip().strip("'\"")
+        temporal_linguistic_fiscal_path = input(
+            "Enter the full path to the text file for 'temporal_linguistic_fiscal': ").strip().strip("'\"")
         temporal_linguistic_fiscal_path = get_abs_path(temporal_linguistic_fiscal_path)
         if os.path.exists(temporal_linguistic_fiscal_path):
+            # READ IT ONCE HERE
+            temporal_data = import_from_text_file_using_full_path(temporal_linguistic_fiscal_path)
+            temporal_linguistic_fiscal_sentence = " ".join(temporal_data)
             break
         print("❌ File not found. Please try again.\n")
 
@@ -292,11 +297,15 @@ def generate_user_prompts():
         action = 'csv'
 
     epoch_now = int(time.time())
-    base_file_name = os.path.splitext(os.path.basename(input_abs_path))[0]
-    base_output_name = f"analytical_documentation_{base_file_name}_{epoch_now}"
+
+    # FIX: Truncate the base file name to avoid hitting the 260 character MAX_PATH limit
+    raw_base_name = os.path.splitext(os.path.basename(input_abs_path))[0]
+    base_file_name = raw_base_name[:40]  # Keep only the first 40 characters
+
+    base_output_name = f"doc_{base_file_name}_{epoch_now}"
 
     # Create an output directory inside the current project folder
-    output_dir = os.path.join(os.getcwd(), f"Output_{base_file_name}_{epoch_now}")
+    output_dir = os.path.join(os.getcwd(), f"Out_{base_file_name}_{epoch_now}")
     os.makedirs(output_dir, exist_ok=True)
 
     # Create a subfolder specifically for the individual prompt text files
@@ -351,7 +360,7 @@ def generate_user_prompts():
                 if prompt_counter >= execution_limit: break
                 process_iter_group(element_combo, df_chunk, observation, table_anchor, max_prompt_chars,
                                    max_cell_length, input_abs_path, epoch_now, ledger_data, "Combination",
-                                   prompts_dir, chunk_idx, prompt_counter, temporal_linguistic_fiscal_path)
+                                   prompts_dir, chunk_idx, prompt_counter, temporal_linguistic_fiscal_sentence)
                 prompt_counter += 1
                 print_progress_bar(prompt_counter, target_total, prefix=f'Chunk {chunk_idx}', length=40)
 
@@ -361,7 +370,7 @@ def generate_user_prompts():
                     if prompt_counter >= execution_limit: break
                     process_iter_group(element_perm, df_chunk, observation, table_anchor, max_prompt_chars,
                                        max_cell_length, input_abs_path, epoch_now, ledger_data, "Permutation",
-                                       prompts_dir, chunk_idx, prompt_counter, temporal_linguistic_fiscal_path)
+                                       prompts_dir, chunk_idx, prompt_counter, temporal_linguistic_fiscal_sentence)
                     prompt_counter += 1
                     print_progress_bar(prompt_counter, target_total, prefix=f'Chunk {chunk_idx}', length=40)
 
