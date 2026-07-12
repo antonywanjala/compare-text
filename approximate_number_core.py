@@ -27,37 +27,62 @@ def get_abs_path(file_path):
     return os.path.abspath(file_path)
 
 
-def load_user_file_chunked():
-    """Prompts user for file path and loads it via a chunked generator."""
+def get_target_files():
+    """Prompts user to select single file or super-folder, returns list of absolute paths."""
     while True:
-        file_path = input("Enter the path to your CSV or XLSX file: ").strip().strip("'\"")
-        abs_in_path = get_abs_path(file_path)
+        mode = input("\nProcess a Single File (1) or a Super-Folder (2)? Enter 1 or 2: ").strip()
+        if mode == '1':
+            file_path = input("Enter the path to your CSV or XLSX file: ").strip().strip("'\"")
+            abs_path = get_abs_path(file_path)
+            if os.path.exists(abs_path):
+                return [abs_path], False
+            print("❌ File not found. Please try again.")
 
-        if not os.path.exists(abs_in_path):
-            print("❌ File not found. Please try again.\n")
-            continue
-
-        try:
-            chunk_size = int(input("Enter chunk size for processing rows (e.g., 100): ") or 100)
-        except ValueError:
-            chunk_size = 100
-
-        _, ext = os.path.splitext(abs_in_path)
-        try:
-            if ext.lower() == '.csv':
-                return pd.read_csv(abs_in_path, chunksize=chunk_size), abs_in_path, chunk_size, ext.lower()
-            elif ext.lower() == '.xlsx':
-                df_full = pd.read_excel(abs_in_path)
-                chunk_iter = (df_full.iloc[i:i + chunk_size] for i in range(0, len(df_full), chunk_size))
-                return chunk_iter, abs_in_path, chunk_size, ext.lower()
-            else:
-                print("❌ Unsupported format. Please provide .csv or .xlsx\n")
-        except Exception as e:
-            print(f"❌ Error reading file: {e}\n")
+        elif mode == '2':
+            folder_path = input("Enter the path to the Super-Folder: ").strip().strip("'\"")
+            abs_folder = get_abs_path(folder_path)
+            if os.path.exists(abs_folder):
+                target_files = []
+                print(f"🔍 Scanning directory: {abs_folder} ...")
+                for root, _, files in os.walk(abs_folder):
+                    for file in files:
+                        if file.lower().endswith(('.xlsx', '.csv')):
+                            target_files.append(get_abs_path(os.path.join(root, file)))
+                print(f"✅ Found {len(target_files)} compatible files.")
+                return target_files, True
+            print("❌ Folder not found. Please try again.")
+        else:
+            print("❌ Invalid selection. Enter 1 or 2.")
 
 
-def select_columns(df_sample):
-    """Allows column selection from the target payload matrix based on a sample chunk."""
+def create_chunk_generator(abs_in_path, chunk_size):
+    """Creates a chunk generator for a given file."""
+    _, ext = os.path.splitext(abs_in_path)
+    try:
+        if ext.lower() == '.csv':
+            chunk_iter = pd.read_csv(abs_in_path, chunksize=chunk_size)
+            first_chunk = next(chunk_iter)
+            # Re-chain the first chunk with the rest of the generator
+            full_iter = itertools.chain([first_chunk], pd.read_csv(abs_in_path, chunksize=chunk_size,
+                                                                   skiprows=range(1, len(first_chunk) + 1)))
+            return full_iter, first_chunk, ext.lower()
+        elif ext.lower() == '.xlsx':
+            df_full = pd.read_excel(abs_in_path)
+            if df_full.empty:
+                return None, None, ext.lower()
+            chunk_iter = (df_full.iloc[i:i + chunk_size] for i in range(0, len(df_full), chunk_size))
+            first_chunk = df_full.iloc[0:chunk_size]
+            return chunk_iter, first_chunk, ext.lower()
+    except Exception as e:
+        print(f"❌ Error reading file {abs_in_path}: {e}")
+        return None, None, None
+
+
+def select_columns(df_sample, batch_mode=False):
+    """Allows column selection, or auto-selects all in batch mode to prevent hanging."""
+    if batch_mode:
+        return df_sample.columns.tolist()
+
     print("\n--- Columns Found in Dataset ---")
     for idx, col in enumerate(df_sample.columns):
         print(f"...[{idx}] {col}")
@@ -118,7 +143,7 @@ def generate_max_budgeted_prompt(df, required_rows, observation, table_anchor, c
                 f"Here is the data payload mapping (Payload Size: {len(md_text):,} chars):\n"
                 f"```markdown\n{md_text}\n```\n\n"
                 f"Based on this structural snapshot, how do those specific coordinate values characterization "
-                f"and/or delineate the broader trends across the dataset? Present the relationship between the previous target coordinates and the data payload mapping in a VBA, C++, and/or Python script that adequately presents said relationship into a script. Assign a tag description (eg. CC, CD, DT, etc.) to each substring and explain how that relationship (between substring and overarching statement can be delineated in subsequent, novel and/or incumbent substr-tag relationhips and emphasize the relationship between the target coordinates and the payload-at-large. Pay heed to how each substr operates." +
+                f"and/or delineate the broader trends across the dataset? Present the relationship between the previous target coordinates and the data payload mapping in a VBA, C++, and/or Python script that adequately presents said relationship into a script. Assign a tag description (eg. CC, CD, DT, etc.) to each substring and explain how that relationship (between substring and overarching statement can be delineated in subsequent, novel and/or incumbent substr-tag relationhips and emphasize the relationship between the target coordinates and the payload-at-large. Pay heed to how each substr operates. Use the following for the tag vocabulary." +
                 temporal_linguistic_fiscal_sentence
         )
 
@@ -185,9 +210,10 @@ def save_chunk(ledger_data, ledger_cols, base_output_name, action, chunk_idx, ou
 
 
 def process_iter_group(element_group, df_chunk, observation, table_anchor, max_prompt_chars, max_cell_length,
-                       input_abs_path, epoch_now, ledger_data, gen_type, prompts_dir, chunk_idx, prompt_counter,
+                       input_abs_path, epoch_now, ledger_data, gen_type, prompts_dir, file_idx, chunk_idx,
+                       prompt_counter,
                        temporal_linguistic_fiscal_sentence):
-    """Helper method to isolate processing logic. Now also writes individual prompts to .txt files."""
+    """Helper method to isolate processing logic."""
     combo_rows = [item[0] for item in element_group]
     callout_lines = []
     phrase_elements = []
@@ -204,15 +230,11 @@ def process_iter_group(element_group, df_chunk, observation, table_anchor, max_p
         temporal_linguistic_fiscal_sentence
     )
 
-    # ---------------------------------------------------------
-    # NEW: Write individual .txt file for this specific prompt
-    # ---------------------------------------------------------
-    prompt_filename = f"prompt_chunk{chunk_idx}_id{prompt_counter}.txt"
+    prompt_filename = f"prompt_F{file_idx}_chunk{chunk_idx}_id{prompt_counter}.txt"
     individual_prompt_path = get_abs_path(os.path.join(prompts_dir, prompt_filename))
 
     with open(individual_prompt_path, 'w', encoding='utf-8') as f:
         f.write(final_prompt_payload)
-    # ---------------------------------------------------------
 
     sample_phrase = " | ".join(phrase_elements)[:100]
     char_len = len(final_prompt_payload)
@@ -222,7 +244,7 @@ def process_iter_group(element_group, df_chunk, observation, table_anchor, max_p
 
     row_record = [
         input_abs_path,
-        individual_prompt_path,  # Now points strictly to the written .txt file absolute path
+        individual_prompt_path,
         epoch_now,
         sample_phrase,
         char_len,
@@ -232,7 +254,7 @@ def process_iter_group(element_group, df_chunk, observation, table_anchor, max_p
         combo_rows[-1] if len(combo_rows) > 0 else 0,
         points,
         total_val,
-        final_prompt_payload,  # Prompt is saved directly within this dedicated column in the ledger
+        final_prompt_payload,
         gen_type
     ]
 
@@ -240,37 +262,30 @@ def process_iter_group(element_group, df_chunk, observation, table_anchor, max_p
 
 
 def generate_user_prompts():
-    print("=== Matrix Union Analytical Ledger Generator (Chunked & Mapped) ===")
+    print("=== Matrix Union Analytical Ledger Generator (Batch/Chunked & Mapped) ===")
 
-    chunk_iter, input_abs_path, input_chunk_size, ext = load_user_file_chunked()
+    # 1. Gather all files to process
+    target_files, is_batch_mode = get_target_files()
+    if not target_files:
+        print("No files to process. Exiting.")
+        return
 
-    # Prompt user for the path to the temporal_linguistic_fiscal variable source text file
+    # 2. Gather global settings ONCE for the entire batch
+    try:
+        chunk_size = int(input("\nEnter chunk size for processing rows (e.g., 100): ") or 100)
+    except ValueError:
+        chunk_size = 100
+
     temporal_linguistic_fiscal_sentence = ""
     while True:
-        temporal_linguistic_fiscal_path = input(
-            "Enter the full path to the text file for 'temporal_linguistic_fiscal': ").strip().strip("'\"")
-        temporal_linguistic_fiscal_path = get_abs_path(temporal_linguistic_fiscal_path)
-        if os.path.exists(temporal_linguistic_fiscal_path):
-            # READ IT ONCE HERE
-            temporal_data = import_from_text_file_using_full_path(temporal_linguistic_fiscal_path)
+        temporal_path = input("Enter the full path to the text file for 'temporal_linguistic_fiscal': ").strip().strip(
+            "'\"")
+        temporal_path = get_abs_path(temporal_path)
+        if os.path.exists(temporal_path):
+            temporal_data = import_from_text_file_using_full_path(temporal_path)
             temporal_linguistic_fiscal_sentence = " ".join(temporal_data)
             break
         print("❌ File not found. Please try again.\n")
-
-    if ext == '.csv':
-        first_chunk = next(chunk_iter)
-        chunk_iter = itertools.chain([first_chunk], pd.read_csv(input_abs_path, chunksize=input_chunk_size,
-                                                                skiprows=range(1, len(first_chunk) + 1)))
-    else:
-        try:
-            first_chunk = next(chunk_iter)
-            chunk_iter = itertools.chain([first_chunk], chunk_iter)
-        except StopIteration:
-            print("Empty file.")
-            return
-
-    table_anchor = f"Table '{os.path.basename(input_abs_path)}' (Chunked Data Processing)"
-    chosen_cols = select_columns(first_chunk)
 
     try:
         n_gram_cap = int(input("Enter the maximum n-gram length for cell combinations/permutations (e.g., 2): ") or 2)
@@ -298,21 +313,13 @@ def generate_user_prompts():
 
     epoch_now = int(time.time())
 
-    # FIX: Truncate the base file name to avoid hitting the 260 character MAX_PATH limit
-    raw_base_name = os.path.splitext(os.path.basename(input_abs_path))[0]
-    base_file_name = raw_base_name[:40]  # Keep only the first 40 characters
-
-    base_output_name = f"doc_{base_file_name}_{epoch_now}"
-
-    # Create an output directory inside the current project folder
-    output_dir = os.path.join(os.getcwd(), f"Out_{base_file_name}_{epoch_now}")
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Create a subfolder specifically for the individual prompt text files
-    prompts_dir = os.path.join(output_dir, "Prompts")
+    # Create Master Output Directory
+    master_output_dir = os.path.join(os.getcwd(), f"Master_Output_{epoch_now}")
+    prompts_dir = os.path.join(master_output_dir, "Prompts")
+    os.makedirs(master_output_dir, exist_ok=True)
     os.makedirs(prompts_dir, exist_ok=True)
 
-    print(f"\n📁 Created output directory: {output_dir}")
+    print(f"\n📁 Created master output directory: {master_output_dir}")
     print(f"📁 Created prompts directory: {prompts_dir}")
 
     ledger_cols = [
@@ -323,79 +330,107 @@ def generate_user_prompts():
         "Generation Type"
     ]
 
-    io_mapping_table = []
+    # Master log to hold I/O mappings for ALL files processed
+    master_io_mapping_table = []
 
-    print(f"\n⚡ Processing chunks (Combinations & Permutations)...")
+    # 3. Process every file in the gathered list
+    for file_idx, input_abs_path in enumerate(target_files):
+        print("\n" + "=" * 60)
+        print(f"🚀 PROCESSING FILE [{file_idx + 1}/{len(target_files)}]: {os.path.basename(input_abs_path)}")
+        print("=" * 60)
 
-    chunk_idx = 0
-    for df_chunk in chunk_iter:
-        print(f"\n--- Processing Chunk {chunk_idx} ---")
-        union_pool = []
-        for r in df_chunk.index:
-            for col in chosen_cols:
-                union_pool.append((r, col, df_chunk.at[r, col]))
+        chunk_iter, first_chunk, ext = create_chunk_generator(input_abs_path, chunk_size)
 
-        total_elements = len(union_pool)
-        if total_elements == 0:
+        if chunk_iter is None or first_chunk is None:
+            print(f"⚠️ Skipping empty or unreadable file: {input_abs_path}")
             continue
 
-        chunk_total_variations = 0
-        for k in range(1, min(n_gram_cap + 1, total_elements + 1)):
-            chunk_total_variations += math.comb(total_elements, k)
-            if k > 1:
-                chunk_total_variations += math.perm(total_elements, k)
+        table_anchor = f"Table '{os.path.basename(input_abs_path)}' (Chunked Data Processing)"
 
-        target_total = min(execution_limit, chunk_total_variations)
+        # If running a batch folder, bypass manual column selection to prevent hanging
+        chosen_cols = select_columns(first_chunk, batch_mode=is_batch_mode)
 
-        ledger_data = []
-        prompt_counter = 0
+        raw_base_name = os.path.splitext(os.path.basename(input_abs_path))[0][:30]
+        base_output_name = f"doc_F{file_idx}_{raw_base_name}_{epoch_now}"
 
-        print_progress_bar(0, target_total, prefix=f'Chunk {chunk_idx}', length=40)
+        print(f"\n⚡ Generating Combinations & Permutations...")
 
-        for k in range(1, n_gram_cap + 1):
-            if prompt_counter >= execution_limit: break
+        chunk_idx = 0
+        for df_chunk in chunk_iter:
+            print(f"\n--- [File {file_idx + 1}] Processing Chunk {chunk_idx} ---")
+            union_pool = []
+            for r in df_chunk.index:
+                for col in chosen_cols:
+                    union_pool.append((r, col, df_chunk.at[r, col]))
 
-            # 1. COMBINATIONS
-            for element_combo in itertools.combinations(union_pool, k):
+            total_elements = len(union_pool)
+            if total_elements == 0:
+                continue
+
+            chunk_total_variations = 0
+            for k in range(1, min(n_gram_cap + 1, total_elements + 1)):
+                chunk_total_variations += math.comb(total_elements, k)
+                if k > 1:
+                    chunk_total_variations += math.perm(total_elements, k)
+
+            target_total = min(execution_limit, chunk_total_variations)
+
+            ledger_data = []
+            prompt_counter = 0
+
+            print_progress_bar(0, target_total, prefix=f'F{file_idx}|C{chunk_idx}', length=40)
+
+            for k in range(1, n_gram_cap + 1):
                 if prompt_counter >= execution_limit: break
-                process_iter_group(element_combo, df_chunk, observation, table_anchor, max_prompt_chars,
-                                   max_cell_length, input_abs_path, epoch_now, ledger_data, "Combination",
-                                   prompts_dir, chunk_idx, prompt_counter, temporal_linguistic_fiscal_sentence)
-                prompt_counter += 1
-                print_progress_bar(prompt_counter, target_total, prefix=f'Chunk {chunk_idx}', length=40)
 
-            # 2. PERMUTATIONS
-            if k > 1:
-                for element_perm in itertools.permutations(union_pool, k):
+                # 1. COMBINATIONS
+                for element_combo in itertools.combinations(union_pool, k):
                     if prompt_counter >= execution_limit: break
-                    process_iter_group(element_perm, df_chunk, observation, table_anchor, max_prompt_chars,
-                                       max_cell_length, input_abs_path, epoch_now, ledger_data, "Permutation",
-                                       prompts_dir, chunk_idx, prompt_counter, temporal_linguistic_fiscal_sentence)
+                    process_iter_group(element_combo, df_chunk, observation, table_anchor, max_prompt_chars,
+                                       max_cell_length, input_abs_path, epoch_now, ledger_data, "Combination",
+                                       prompts_dir, file_idx, chunk_idx, prompt_counter,
+                                       temporal_linguistic_fiscal_sentence)
                     prompt_counter += 1
-                    print_progress_bar(prompt_counter, target_total, prefix=f'Chunk {chunk_idx}', length=40)
+                    print_progress_bar(prompt_counter, target_total, prefix=f'F{file_idx}|C{chunk_idx}', length=40)
 
-        out_abs_path = save_chunk(ledger_data, ledger_cols, base_output_name, action, chunk_idx, output_dir)
-        print(f"✅ Chunk {chunk_idx} flushed. Generative count: {prompt_counter}")
-        print(f"📂 Master Ledger saved to: {out_abs_path}")
+                # 2. PERMUTATIONS
+                if k > 1:
+                    for element_perm in itertools.permutations(union_pool, k):
+                        if prompt_counter >= execution_limit: break
+                        process_iter_group(element_perm, df_chunk, observation, table_anchor, max_prompt_chars,
+                                           max_cell_length, input_abs_path, epoch_now, ledger_data, "Permutation",
+                                           prompts_dir, file_idx, chunk_idx, prompt_counter,
+                                           temporal_linguistic_fiscal_sentence)
+                        prompt_counter += 1
+                        print_progress_bar(prompt_counter, target_total, prefix=f'F{file_idx}|C{chunk_idx}', length=40)
 
-        io_mapping_table.append({
-            "Input_Abs_Filepath": input_abs_path,
-            "Input_Chunk_Index": chunk_idx,
-            "Input_Chunk_Size": len(df_chunk),
-            "Ledger_Output_Abs_Filepath": out_abs_path,
-            "Items_Generated": prompt_counter
-        })
+            # Flush ledger for this specific file chunk to the Master Directory
+            out_abs_path = save_chunk(ledger_data, ledger_cols, base_output_name, action, chunk_idx, master_output_dir)
+            print(f"✅ Chunk {chunk_idx} flushed. Generative count: {prompt_counter}")
 
-        chunk_idx += 1
+            master_io_mapping_table.append({
+                "Input_Abs_Filepath": input_abs_path,
+                "File_Index": file_idx,
+                "Input_Chunk_Index": chunk_idx,
+                "Input_Chunk_Size": len(df_chunk),
+                "Ledger_Output_Abs_Filepath": out_abs_path,
+                "Items_Generated": prompt_counter
+            })
 
-    mapping_df = pd.DataFrame(io_mapping_table)
-    mapping_abs_path = get_abs_path(os.path.join(output_dir, f"IO_Mapping_Table_{epoch_now}.csv"))
-    mapping_df.to_csv(mapping_abs_path, index=False)
+            chunk_idx += 1
 
-    print("\n" + "=" * 50)
-    print("🎯 PROCESS COMPLETE")
-    print(f"📊 I/O Mapping documentation saved to: {mapping_abs_path}")
-    print("=" * 50)
+    # 4. Save Master IO Mapping Table (Logs all files and all chunks processed)
+    if master_io_mapping_table:
+        mapping_df = pd.DataFrame(master_io_mapping_table)
+        mapping_abs_path = get_abs_path(os.path.join(master_output_dir, f"Master_IO_Mapping_Table_{epoch_now}.csv"))
+        mapping_df.to_csv(mapping_abs_path, index=False)
+
+        print("\n" + "=" * 60)
+        print("🎯 BATCH PROCESS COMPLETE")
+        print(f"📊 Master I/O Mapping documentation saved to: {mapping_abs_path}")
+        print("=" * 60)
+    else:
+        print("\n⚠️ Process finished, but no chunks were mapped.")
 
 
 if __name__ == "__main__":
