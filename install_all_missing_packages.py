@@ -15,8 +15,14 @@ def is_standard_library(module_name: str) -> bool:
     if hasattr(sys, 'stdlib_module_names'):
         return module_name in sys.stdlib_module_names
 
-    import distutils.sysconfig as sysconfig
-    std_lib_path = sysconfig.get_python_lib(standard_lib=True)
+    # Use standard library sysconfig or fallback to setuptools.sysconfig
+    try:
+        import sysconfig
+        std_lib_path = sysconfig.get_path("stdlib")
+    except (ImportError, AttributeError):
+        from setuptools import sysconfig
+        std_lib_path = sysconfig.get_python_lib(standard_lib=True)
+
     return os.path.exists(os.path.join(std_lib_path, f"{module_name}.py")) or \
         os.path.exists(os.path.join(std_lib_path, module_name))
 
@@ -229,6 +235,17 @@ def install_missing_packages(raw_path: str, python_exe: str = sys.executable):
             print(f"✅ Successfully installed {package}")
         except subprocess.CalledProcessError:
             print(f"❌ Failed to install {package}. Verify the package name on PyPI.")
+
+
+def preset1(target_path: Optional[str] = None, custom_env: Optional[str] = None):
+    # Default to the current running script if no target path is provided
+    if not target_path:
+        target_path = __file__
+
+    # Default to the current Python executable if no custom environment is provided
+    target_env = custom_env if custom_env else sys.executable
+
+    install_missing_packages(target_path, target_env)
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
