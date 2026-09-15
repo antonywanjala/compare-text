@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Merge All Windows",
+  "version": "1.0",
+  "description": "Combines all open tabs across all windows into a single window.",
+  "permissions": [
+    "tabs"
+  ],
+  "action": {
+    "default_title": "Merge all tabs into this window"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
