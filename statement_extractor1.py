@@ -1,5 +1,15 @@
 import nltk
 import csv
+import ssl
+import time
+
+# Bypass SSL certificate verification
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:åç
+    ssl._create_default_https_context = _create_unverified_https_context
 
 # Download the necessary punctuation model (runs quietly)
 nltk.download('punkt', quiet=True)
@@ -41,7 +51,6 @@ def process_text_to_csv(input_filepath, output_filepath):
         print(f"Error: Could not find the file '{input_filepath}'. Please check the path.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-
 
 # ==========================================
 # Usage
